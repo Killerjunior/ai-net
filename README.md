@@ -153,22 +153,6 @@ Looking for a place to start? Check [ISSUES.md](ISSUES.md) or browse [good first
 
 ---
 
-## Drips Wave — Get Paid to Contribute
-
-ai-net participates in **[Drips Wave](https://www.drips.network)**, organized by the **Stellar Development Foundation**. Contributors who complete qualifying issues can earn rewards from the Wave funding pool — at no cost to them.
-
-**How it works:**
-1. Browse open issues tagged `good first issue` or `wave`.
-2. Comment on the issue to claim it.
-3. Submit a pull request.
-4. Earn a reward from the Wave pool upon merge.
-
-Participation is free. Rewards are funded by Wave Organizers (Stellar Development Foundation), not maintainers.
-
-→ [View open Wave issues](../../issues?q=label%3Awave)
-
----
-
 ## Roadmap
 
 - [ ] Agent Registry (Soroban contract)
