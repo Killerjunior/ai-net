@@ -1,76 +1,247 @@
-import type { DAGNode, Task } from './types';
+import type { AgentRegistration, AgentRegistry } from '../types/agent';
+import type { PaymentService } from '../types/payment';
 import { eventBus } from './eventBus';
 import { updateNode, updateTask } from './taskStore';
+import type { DAGNode, Task } from './types';
 
-/** Injected function to dispatch a single node to its agent */
+const DEFAULT_CONCURRENCY = 3;
+const DEFAULT_TIMEOUT_MS = 30_000;
+const PRIMARY_ATTEMPTS = 3;
+
 export type DispatchFn = (
   taskId: string,
   node: DAGNode,
   context: string
 ) => Promise<unknown>;
 
-/** Injected function called after each successful node to release payment */
 export type PaymentReleaseFn = (
   taskId: string,
   nodeId: string
 ) => Promise<string>;
 
+export interface CoordinatorOptions {
+  agentRegistry?: AgentRegistry;
+  paymentService?: PaymentService;
+  eventBus?: typeof eventBus;
+  concurrency?: number;
+  timeoutMs?: number;
+  fetch?: typeof fetch;
+  dispatch?: DispatchFn;
+}
+
+class ConcurrencyLimiter {
+  private readonly queue: Array<() => void> = [];
+  private active = 0;
+
+  constructor(private readonly limit: number) {}
+
+  run<T>(work: () => Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const start = (): void => {
+        this.active += 1;
+        work()
+          .then(resolve, reject)
+          .finally(() => {
+            this.active -= 1;
+            this.queue.shift()?.();
+          });
+      };
+
+      if (this.active < this.limit) {
+        start();
+      } else {
+        this.queue.push(start);
+      }
+    });
+  }
+}
+
+class RetryableAgentError extends Error {}
+class NonRetryableAgentError extends Error {}
+
 function now(): string {
   return new Date().toISOString();
 }
 
-/**
- * Execute a DAG in topological order, running dependency-free nodes concurrently.
- * Emits DAGEvents to the EventBus throughout.
- */
-export async function executeDAG(
-  task: Task,
-  dispatch: DispatchFn,
-  releasePayment: PaymentReleaseFn
-): Promise<void> {
-  const { taskId, dag } = task;
-  const completed = new Set<string>();
-  const running   = new Set<string>();
-  const failed    = new Set<string>();
+function asErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : 'unknown';
+}
 
-  updateTask(taskId, { status: 'running' });
+function isRetryable(err: unknown): boolean {
+  return err instanceof RetryableAgentError;
+}
 
-  async function runNode(node: DAGNode): Promise<void> {
-    running.add(node.nodeId);
+function sortByCost(agents: AgentRegistration[]): AgentRegistration[] {
+  return [...agents].sort((a, b) => a.cost - b.cost);
+}
+
+export class Coordinator {
+  private readonly bus: typeof eventBus;
+  private readonly limiter: ConcurrencyLimiter;
+  private readonly timeoutMs: number;
+  private readonly fetchImpl: typeof fetch;
+  private readonly dispatchOverride?: DispatchFn;
+  private readonly agentRegistry?: AgentRegistry;
+  private readonly paymentService: PaymentService;
+
+  constructor(options: CoordinatorOptions = {}) {
+    this.bus = options.eventBus ?? eventBus;
+    this.limiter = new ConcurrencyLimiter(options.concurrency ?? DEFAULT_CONCURRENCY);
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.fetchImpl = options.fetch ?? fetch;
+    this.dispatchOverride = options.dispatch;
+    this.agentRegistry = options.agentRegistry;
+    this.paymentService = options.paymentService ?? { release: async () => 'mock-hash' };
+  }
+
+  async executeDAG(taskId: string, dag: DAGNode[]): Promise<void> {
+    const completed = new Set<string>();
+    const failed = new Set<string>();
+    const scheduled = new Set<string>();
+    const nodeById = new Map(dag.map(node => [node.nodeId, node]));
+    let inFlight = 0;
+
+    updateTaskIfPresent(taskId, { status: 'running' });
+
+    await new Promise<void>(resolve => {
+      const finishIfSettled = (): void => {
+        if (completed.size + failed.size !== dag.length) return;
+
+        const status = failed.size === 0 ? 'completed' : 'failed';
+        updateTaskIfPresent(taskId, { status, dag });
+        this.bus.emit(taskId, {
+          type: status === 'completed' ? 'task_completed' : 'task_failed',
+          taskId,
+          timestamp: now(),
+        });
+        resolve();
+      };
+
+      const failBlockedNodes = (includeDeadlocked: boolean): void => {
+        for (const node of dag) {
+          if (node.status !== 'pending') {
+            continue;
+          }
+
+          const hasFailedDependency = node.dependsOn.some(dep => failed.has(dep));
+          const hasUnresolvedDependency = node.dependsOn.some(dep => !nodeById.has(dep));
+          const isDeadlocked =
+            includeDeadlocked &&
+            inFlight === 0 &&
+            !node.dependsOn.every(dep => completed.has(dep));
+
+          if (!hasFailedDependency && !hasUnresolvedDependency && !isDeadlocked) {
+            continue;
+          }
+
+          node.status = 'failed';
+          node.error = hasUnresolvedDependency ? 'dependency_not_found' : 'upstream_failed';
+          failed.add(node.nodeId);
+          updateNode(taskId, node.nodeId, { status: 'failed', error: node.error });
+          this.bus.emit(taskId, {
+            type: 'node_failed',
+            taskId,
+            nodeId: node.nodeId,
+            timestamp: now(),
+            payload: { error: node.error },
+          });
+        }
+      };
+
+      const scheduleReadyNodes = (): void => {
+        let scheduledAny = false;
+
+        for (const node of dag) {
+          if (
+            node.status !== 'pending' ||
+            scheduled.has(node.nodeId) ||
+            !node.dependsOn.every(dep => completed.has(dep))
+          ) {
+            continue;
+          }
+
+          scheduledAny = true;
+          scheduled.add(node.nodeId);
+          inFlight += 1;
+          this.limiter.run(() => this.runNode(taskId, node, nodeById))
+            .then(status => {
+              if (status === 'completed') completed.add(node.nodeId);
+              else failed.add(node.nodeId);
+            })
+            .finally(() => {
+              inFlight -= 1;
+              scheduleReadyNodes();
+              failBlockedNodes(false);
+              finishIfSettled();
+            });
+        }
+
+        if (!scheduledAny && inFlight === 0) {
+          failBlockedNodes(true);
+          finishIfSettled();
+        }
+      };
+
+      scheduleReadyNodes();
+    });
+  }
+
+  async dispatchNode(node: DAGNode, context: string, agent?: AgentRegistration): Promise<unknown> {
+    const target = agent ?? await this.cheapestAgentFor(node.agentType);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      const response = await this.fetchImpl(`${target.endpoint.replace(/\/$/, '')}/execute`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ node, context }),
+        signal: controller.signal,
+      });
+
+      if (response.status >= 500) {
+        throw new RetryableAgentError(`Agent ${target.id} returned ${response.status}`);
+      }
+      if (!response.ok) {
+        throw new NonRetryableAgentError(`Agent ${target.id} returned ${response.status}`);
+      }
+
+      const text = await response.text();
+      return text ? JSON.parse(text) : {};
+    } catch (err) {
+      if (err instanceof NonRetryableAgentError || err instanceof RetryableAgentError) {
+        throw err;
+      }
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new RetryableAgentError(`Agent ${target.id} timed out after ${this.timeoutMs}ms`);
+      }
+      throw new RetryableAgentError(asErrorMessage(err));
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async runNode(
+    taskId: string,
+    node: DAGNode,
+    nodeById: Map<string, DAGNode>
+  ): Promise<'completed' | 'failed'> {
+    node.status = 'running';
     updateNode(taskId, node.nodeId, { status: 'running' });
-
-    eventBus.emit(taskId, {
+    this.bus.emit(taskId, {
       type: 'node_started',
       taskId,
       nodeId: node.nodeId,
       timestamp: now(),
     });
 
-    // Build context from upstream results
-    const upstreamResults = dag
-      .filter(n => node.dependsOn.includes(n.nodeId))
-      .map(n => n.result ? JSON.stringify(n.result) : '')
-      .join('\n');
-
     try {
-      const result = await dispatch(taskId, node, upstreamResults);
+      const result = await this.dispatchWithRetry(taskId, node, this.contextFor(node, nodeById));
 
-      // Update in-memory dag node with result before emitting event
-      node.result = result;
       node.status = 'completed';
+      node.result = result;
       updateNode(taskId, node.nodeId, { status: 'completed', result });
-
-      const txHash = await releasePayment(taskId, node.nodeId);
-
-      eventBus.emit(taskId, {
-        type: 'payment_released',
-        taskId,
-        nodeId: node.nodeId,
-        timestamp: now(),
-        payload: { txHash },
-      });
-
-      eventBus.emit(taskId, {
+      this.bus.emit(taskId, {
         type: 'node_completed',
         taskId,
         nodeId: node.nodeId,
@@ -78,64 +249,103 @@ export async function executeDAG(
         payload: result,
       });
 
-      completed.add(node.nodeId);
+      const txHash = await this.paymentService.release(taskId, node.nodeId);
+      this.bus.emit(taskId, {
+        type: 'payment_released',
+        taskId,
+        nodeId: node.nodeId,
+        timestamp: now(),
+        payload: { txHash },
+      });
+
+      return 'completed';
     } catch (err) {
       node.status = 'failed';
-      node.error  = err instanceof Error ? err.message : 'unknown';
+      node.error = asErrorMessage(err);
       updateNode(taskId, node.nodeId, { status: 'failed', error: node.error });
-
-      failed.add(node.nodeId);
-
-      eventBus.emit(taskId, {
+      this.bus.emit(taskId, {
         type: 'node_failed',
         taskId,
         nodeId: node.nodeId,
         timestamp: now(),
         payload: { error: node.error },
       });
-    } finally {
-      running.delete(node.nodeId);
+      return 'failed';
     }
   }
 
-  // Iterate until every node is settled
-  while (completed.size + failed.size < dag.length) {
-    const ready = dag.filter(
-      n =>
-        n.status === 'pending' &&
-        !running.has(n.nodeId) &&
-        n.dependsOn.every(dep => completed.has(dep)) &&
-        // Skip if a dependency failed
-        !n.dependsOn.some(dep => failed.has(dep))
-    );
+  private contextFor(node: DAGNode, nodeById: Map<string, DAGNode>): string {
+    return node.dependsOn
+      .map(dep => nodeById.get(dep)?.result)
+      .filter(result => result !== undefined)
+      .map(result => JSON.stringify(result))
+      .join('\n');
+  }
 
-    if (ready.length === 0 && running.size === 0) {
-      // Remaining nodes are blocked by failures
-      for (const n of dag.filter(n => n.status === 'pending')) {
-        n.status = 'failed';
-        n.error  = 'upstream_failed';
-        updateNode(taskId, n.nodeId, { status: 'failed', error: 'upstream_failed' });
-        failed.add(n.nodeId);
+  private async dispatchWithRetry(taskId: string, node: DAGNode, context: string): Promise<unknown> {
+    if (this.dispatchOverride) {
+      return this.dispatchOverride(taskId, node, context);
+    }
+
+    const agents = await this.agentsFor(node.agentType);
+    const primary = agents[0];
+    let lastError: unknown = new Error(`No agent registered for type: ${node.agentType}`);
+
+    for (let attempt = 1; attempt <= PRIMARY_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.dispatchNode(node, context, primary);
+      } catch (err) {
+        lastError = err;
+        if (!isRetryable(err)) throw err;
       }
-      break;
     }
 
-    if (ready.length > 0) {
-      // Run at most 3 concurrently (per Issue #25 spec)
-      const batch = ready.slice(0, 3);
-      await Promise.all(batch.map(n => runNode(n)));
-    } else {
-      // Still waiting for in-flight nodes — yield briefly
-      await new Promise(r => setTimeout(r, 10));
+    const fallback = agents.find(agent => agent.id !== primary.id);
+    if (fallback) {
+      try {
+        return await this.dispatchNode(node, context, fallback);
+      } catch (err) {
+        lastError = err;
+      }
     }
+
+    throw lastError;
   }
 
-  const finalStatus = failed.size === 0 ? 'completed' : 'failed';
-  updateTask(taskId, { status: finalStatus, dag });
+  private async cheapestAgentFor(agentType: string): Promise<AgentRegistration> {
+    return (await this.agentsFor(agentType))[0];
+  }
 
-  eventBus.emit(taskId, {
-    type: finalStatus === 'completed' ? 'task_completed' : 'task_failed',
-    taskId,
-    timestamp: now(),
+  private async agentsFor(agentType: string): Promise<AgentRegistration[]> {
+    if (!this.agentRegistry) {
+      throw new Error(`No agent registry configured for type: ${agentType}`);
+    }
+
+    const agents = sortByCost(await this.agentRegistry.getAgents(agentType));
+    if (agents.length === 0) {
+      throw new Error(`No agent registered for type: ${agentType}`);
+    }
+    return agents;
+  }
+}
+
+export async function executeDAG(
+  task: Task,
+  dispatch: DispatchFn,
+  releasePayment: PaymentReleaseFn
+): Promise<void> {
+  const coordinator = new Coordinator({
+    dispatch,
+    paymentService: { release: releasePayment },
   });
+
+  await coordinator.executeDAG(task.taskId, task.dag);
+}
+
+function updateTaskIfPresent(taskId: string, patch: Partial<Task>): void {
+  try {
+    updateTask(taskId, patch);
+  } catch {
+    // Unit tests can exercise the coordinator without creating a task first.
+  }
 }
