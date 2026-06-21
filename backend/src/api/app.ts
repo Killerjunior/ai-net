@@ -8,6 +8,7 @@ import { executeDAG, type DispatchFn, type PaymentReleaseFn } from '../coordinat
 import { createTask, getTask } from '../coordinator/taskStore';
 import { eventBus } from '../coordinator/eventBus';
 import type { DAGEvent } from '../coordinator/types';
+import { createPaymentReleaseFn, type StellarReleasePaymentFn } from '../payment';
 
 export interface AppOptions {
   /** Called to execute a single DAG node; defaults to HTTP dispatch */
@@ -16,13 +17,28 @@ export interface AppOptions {
   releasePayment?: PaymentReleaseFn;
 }
 
+/**
+ * Attempt to load smart-contracts releasePayment at runtime via dynamic require.
+ * Returns undefined when the module is unavailable (e.g. backend CI without
+ * smart-contracts compiled). Using require() instead of a static import keeps
+ * TypeScript's rootDir constraint intact.
+ */
+function tryLoadStellarRelease(): StellarReleasePaymentFn | undefined {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('../../../smart-contracts/src/payment/payment').releasePayment as StellarReleasePaymentFn;
+  } catch {
+    return undefined;
+  }
+}
+
 export function createApp(opts: AppOptions = {}): { httpServer: HttpServer; close: () => void } {
   const app = express();
   app.use(express.json());
 
   const dispatch: DispatchFn = opts.dispatch ?? defaultDispatch;
   const releasePayment: PaymentReleaseFn =
-    opts.releasePayment ?? (async () => 'mock-hash');
+    opts.releasePayment ?? createPaymentReleaseFn(tryLoadStellarRelease());
 
   // ── POST /api/tasks ────────────────────────────────────────────────────────
   app.post('/api/tasks', (req: Request, res: Response) => {
