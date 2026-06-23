@@ -14,18 +14,21 @@ import ErrorBoundary from './components/common/ErrorBoundary'
 const AppContent: React.FC = () => {
   return (
     <Router>
-      <AppShell>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/wallet" element={<WalletPage />} />
-          <Route path="/agents" element={<AgentsPage />} />
-          <Route path="/tasks/new" element={<NewTaskPage />} />
-          <Route path="/tasks/:id" element={<TaskDetailPage />} />
-          <Route path="/wallet" element={<WalletPage />} />
-          <Route path="/renderer-demo" element={<RendererDemoPage />} />
-        </Routes>
-      </AppShell>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/*" element={
+          <AppShell>
+            <Routes>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/wallet" element={<WalletPage />} />
+              <Route path="/agents" element={<AgentsPage />} />
+              <Route path="/tasks/new" element={<NewTaskPage />} />
+              <Route path="/tasks/:id" element={<TaskDetailPage />} />
+              <Route path="/renderer-demo" element={<RendererDemoPage />} />
+            </Routes>
+          </AppShell>
+        } />
+      </Routes>
     </Router>
   )
 }
