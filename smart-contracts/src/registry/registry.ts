@@ -14,9 +14,7 @@ export function registerAgent(agent: Agent): Agent {
 }
 
 export function discoverAgents(capability: string): Agent[] {
-  return Array.from(agents.values()).filter(
-    (agent) => agent.capability === capability,
-  );
+  return Array.from(agents.values()).filter((a) => a.capability === capability);
 }
 
 export function getAgent(id: string): Agent | undefined {
