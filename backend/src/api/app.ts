@@ -12,6 +12,7 @@ import { createPaymentReleaseFn, type StellarReleasePaymentFn } from '../payment
 import { agentsRouter } from './routes/agents';
 import { rateLimitMiddleware } from './middleware/rateLimit';
 import { authMiddleware } from './middleware/auth';
+import { createTaskDb, getTaskDb } from '../db/tasks';
 
 export interface AppOptions {
   /** Called to execute a single DAG node; defaults to HTTP dispatch */
@@ -73,13 +74,18 @@ export function createApp(opts: AppOptions = {}): { httpServer: HttpServer; clos
 
   // ── POST /api/tasks ────────────────────────────────────────────────────────
   app.post('/api/tasks', authMiddleware, rateLimitMiddleware, (req: Request, res: Response) => {
-    const { prompt, walletPublicKey } = req.body as {
+    const { prompt, walletPublicKey, maxBudgetXLM } = req.body as {
       prompt?: string;
       walletPublicKey?: string;
+      maxBudgetXLM?: number;
     };
 
     if (!prompt || typeof prompt !== 'string' || prompt.trim() === '') {
       return res.status(400).json({ error: 'prompt is required' });
+    }
+
+    if (maxBudgetXLM !== undefined && maxBudgetXLM < 0.1) {
+      return res.status(400).json({ error: 'maxBudgetXLM must be >= 0.1' });
     }
 
     const taskId = `task_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
@@ -90,7 +96,7 @@ export function createApp(opts: AppOptions = {}): { httpServer: HttpServer; clos
     createTask({
       taskId,
       prompt,
-      walletPublicKey: walletPublicKey ?? 'anonymous',
+      walletPublicKey: walletPublicKey ?? (req.headers['walletpublickey'] as string | undefined) ?? 'anonymous',
       status: 'queued',
       dag,
       createdAt: now,
@@ -112,11 +118,34 @@ export function createApp(opts: AppOptions = {}): { httpServer: HttpServer; clos
     return res.status(201).json({ taskId, dagPreview: dag, status: 'queued' });
   });
 
+  // ── GET /api/tasks ─────────────────────────────────────────────────────────
+  app.get('/api/tasks', authMiddleware, (req: Request, res: Response) => {
+    const walletPublicKey = req.headers['walletpublickey'] as string | undefined;
+    if (!walletPublicKey) return res.status(401).json({ error: 'walletpublickey header required' });
+    const page = Math.max(1, parseInt(req.query.page as string ?? '1', 10));
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string ?? '20', 10)));
+    const taskDb = createTaskDb(getTaskDb());
+    const { tasks, total } = taskDb.list(walletPublicKey, page, pageSize);
+    return res.json({ tasks, total, page, pageSize });
+  });
+
   // ── GET /api/tasks/:id ─────────────────────────────────────────────────────
   app.get('/api/tasks/:id', (req: Request, res: Response) => {
     const task = getTask(req.params.id!);
     if (!task) return res.status(404).json({ error: 'Task not found' });
-    return res.json(task);
+    return res.json({ ...task, id: task.taskId, dag: task.dag });
+  });
+
+  // ── DELETE /api/tasks/:id ──────────────────────────────────────────────────
+  app.delete('/api/tasks/:id', (req: Request, res: Response) => {
+    const task = getTask(req.params.id!);
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+    if (task.status === 'running') {
+      return res.status(409).json({ error: 'Cannot cancel a running task' });
+    }
+    const taskDb = createTaskDb(getTaskDb());
+    taskDb.updateStatus(req.params.id!, 'cancelled');
+    return res.json({ ...task, id: task.taskId, status: 'cancelled' });
   });
 
   // ── HTTP server ────────────────────────────────────────────────────────────

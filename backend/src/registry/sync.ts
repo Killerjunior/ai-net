@@ -50,7 +50,7 @@ export function startAgentSync(): void {
 
       for (const event of eventsResp.events) {
         try {
-          const topicNative = event.topic.map(t => scValToNative(t));
+          const topicNative = event.topic.map((t: any) => scValToNative(t));
           
           // Assuming "register" or simply upsert any valid event matching the schema
           if (topicNative[0] === "register" || topicNative.length > 0) {

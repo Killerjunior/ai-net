@@ -62,7 +62,7 @@ describe('deriveConfidence', () => {
     [3, 0.6],
     [4, 0.9],
     [10, 0.9],
-  ])('sourceCount=%i → confidence=%f', (sourceCount, expected) => {
+  ])('sourceCount=%i → confidence=%f', (sourceCount: number, expected: number) => {
     expect(deriveConfidence(sourceCount)).toBe(expected);
   });
 });

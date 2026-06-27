@@ -12,9 +12,7 @@
     "resolveJsonModule": true,
     "sourceMap": true,
     "typeRoots": ["./node_modules/@types"],
-    "paths": {
-      "@stellar/stellar-sdk": ["./src/@types/@stellar/stellar-sdk.d.ts"]
-    },
+    "types": ["jest", "node"],
     "baseUrl": "."
   },
   "include": ["src", "tests"],

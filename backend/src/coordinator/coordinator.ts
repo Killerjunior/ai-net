@@ -189,6 +189,10 @@ export class Coordinator {
               if (status === 'completed') completed.add(node.nodeId);
               else failed.add(node.nodeId);
             })
+            .catch(err => {
+              console.error('[coordinator] runNode threw unexpectedly:', err);
+              failed.add(node.nodeId);
+            })
             .finally(() => {
               inFlight -= 1;
               scheduleReadyNodes();

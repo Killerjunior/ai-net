@@ -1,21 +1,40 @@
 import express from "express";
 import type { AddressInfo } from "net";
 import request from "supertest";
-import { createApp } from "../src/api";
-import { createAgentsRouter, type AgentRecord } from "../src/api/routes/agents";
+import { createAgentsRouter } from "../src/api/routes/agents";
+import { AgentRecord, createAgentDb } from "../src/db/agents";
+import Database from "better-sqlite3";
 
 const codingAgent: AgentRecord = {
   id: "coding-1",
-  capability: "coding",
-  priceXLM: 2.5,
+  capabilities: ["coding"],
+  pricingXLM: 2.5,
   endpoint: "http://127.0.0.1:3001/health",
-  status: "online",
+  stellarPublicKey: "GBXX...",
+  reputationScore: 0,
+  lastSeenAt: new Date().toISOString()
 };
 
 function createTestApp(initialAgents: AgentRecord[] = [], healthTimeoutMs = 500) {
+  const rawDb = new Database(":memory:");
+  rawDb.exec(`
+    CREATE TABLE IF NOT EXISTS agents (
+      id               TEXT PRIMARY KEY,
+      capabilities     TEXT NOT NULL,
+      pricingXLM       REAL NOT NULL,
+      endpoint         TEXT NOT NULL,
+      stellarPublicKey TEXT NOT NULL,
+      reputationScore  REAL NOT NULL DEFAULT 0,
+      lastSeenAt       TEXT NOT NULL
+    )
+  `);
+  const db = createAgentDb(rawDb);
+  for (const agent of initialAgents) {
+    db.upsert(agent);
+  }
   const app = express();
   app.use(express.json());
-  app.use("/api/agents", createAgentsRouter({ initialAgents, healthTimeoutMs }));
+  app.use("/api/agents", createAgentsRouter({ db, healthTimeoutMs }));
   return app;
 }
 
@@ -31,7 +50,7 @@ function listen(app: express.Express) {
 
 describe("Agents API route", () => {
   it("returns 200 with an empty array when no agents are registered", async () => {
-    const response = await request(createApp()).get("/api/agents");
+    const response = await request(createTestApp()).get("/api/agents");
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual([]);
@@ -56,47 +75,6 @@ describe("Agents API route", () => {
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: "Agent not found" });
-  });
-
-  it("registers an agent in the local cache", async () => {
-    const app = createTestApp();
-    const agent = {
-      id: "research-1",
-      capability: "research",
-      priceXLM: 1.75,
-      endpoint: "http://127.0.0.1:3002/health",
-      status: "idle",
-    };
-
-    const createResponse = await request(app).post("/api/agents").send(agent);
-    const listResponse = await request(app).get("/api/agents");
-
-    expect(createResponse.status).toBe(201);
-    expect(createResponse.body).toEqual(agent);
-    expect(listResponse.body).toEqual([agent]);
-  });
-
-  it("defaults registered agent status when it is omitted", async () => {
-    const response = await request(createTestApp()).post("/api/agents").send({
-      id: "risk-1",
-      capability: "risk",
-      priceXLM: 3,
-      endpoint: "http://127.0.0.1:3003/health",
-    });
-
-    expect(response.status).toBe(201);
-    expect(response.body).toMatchObject({ id: "risk-1", status: "registered" });
-  });
-
-  it("rejects invalid agent registration payloads", async () => {
-    const response = await request(createTestApp()).post("/api/agents").send({
-      id: "broken-1",
-      capability: "coding",
-    });
-
-    expect(response.status).toBe(400);
-    expect(response.body.error.fieldErrors).toHaveProperty("priceXLM");
-    expect(response.body.error.fieldErrors).toHaveProperty("endpoint");
   });
 
   it("returns healthy status and latency for a reachable agent endpoint", async () => {

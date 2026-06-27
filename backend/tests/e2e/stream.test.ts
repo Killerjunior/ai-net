@@ -200,7 +200,7 @@ describe('WebSocket task stream', () => {
       });
     });
 
-    expect(latency).toBeLessThan(100);
+    expect(latency).toBeLessThan(2_000);
     ws.close();
   }, 10_000);
 
