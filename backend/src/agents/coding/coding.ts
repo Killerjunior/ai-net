@@ -6,7 +6,6 @@
 
 import { z } from 'zod';
 import { BaseAgent, type AgentTask, type AgentError, type BaseAgentConfig } from '../base/BaseAgent';
-import { VeniceClient } from '../research/veniceClient';
 
 export class UnsafeCodeRequestError extends Error {
   constructor(message: string) {

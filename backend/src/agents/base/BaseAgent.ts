@@ -1,19 +1,9 @@
-/**
- * BaseAgent - Abstract base class shared by all agent implementations.
- * 
- * Provides common functionality for Venice AI integration, health checks,
- * registration, and error handling patterns.
- */
-
 import { z } from 'zod';
-import { VeniceClient, VeniceUnavailableError } from '../research/veniceClient';
+import { VeniceClient, type AgentType } from '../../venice/index.js';
 
 export interface BaseAgentConfig {
-  /** Injected VeniceClient; defaults to reading VENICE_API_KEY from process.env. */
   veniceClient?: VeniceClient;
-  /** Base URL of the internal API server used for self-registration. */
   apiBaseUrl?: string;
-  /** Unique stable ID for this agent instance. */
   agentId?: string;
 }
 
@@ -51,42 +41,23 @@ export abstract class BaseAgent {
     this.agentId = config.agentId ?? `${this.getCapability()}-agent-1`;
   }
 
-  /**
-   * Abstract method to execute a task - must be implemented by subclasses.
-   */
   abstract execute(task: AgentTask): Promise<unknown | AgentError>;
-
-  /**
-   * Abstract method to return the agent's capability - must be implemented by subclasses.
-   */
   abstract getCapability(): string;
-
-  /**
-   * Abstract method to get the agent's output schema - must be implemented by subclasses.
-   */
   abstract getOutputSchema(): z.ZodSchema;
 
-  /**
-   * Health check - returns false (not throws) on Venice failure.
-   */
+  protected getAgentType(): AgentType {
+    return this.getCapability() as AgentType;
+  }
+
   async healthCheck(): Promise<boolean> {
     try {
-      await this.venice.chat([
-        { role: 'user', content: 'Hello' }
-      ]);
+      await this.venice.complete('Hello', this.getAgentType());
       return true;
-    } catch (err) {
-      if (err instanceof VeniceUnavailableError) {
-        return false;
-      }
-      console.error(`[${this.constructor.name}] Unexpected error in healthCheck:`, err instanceof Error ? err.message : 'unknown');
+    } catch {
       return false;
     }
   }
 
-  /**
-   * Self-register this agent with the registry.
-   */
   async register(): Promise<void> {
     const body = JSON.stringify({
       agentId: this.agentId,
@@ -114,24 +85,16 @@ export abstract class BaseAgent {
     }
   }
 
-  /**
-   * Validate Venice response using the agent's output schema.
-   */
   protected validateOutput(raw: unknown): unknown | null {
     const result = this.getOutputSchema().safeParse(raw);
     return result.success ? result.data : null;
   }
 
-  /**
-   * Parse JSON from Venice response, handling potential markdown wrappers.
-   */
   protected parseJsonResponse(raw: string): unknown | null {
     if (typeof raw !== 'string') {
       return null;
     }
-    
     const trimmed = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-
     try {
       return JSON.parse(trimmed);
     } catch {
@@ -139,26 +102,17 @@ export abstract class BaseAgent {
     }
   }
 
-  /**
-   * Call Venice AI with retry logic for malformed JSON responses.
-   */
   protected async callVeniceWithRetry(
     systemPrompt: string,
     userContent: string,
     jsonModeAddendum: string
   ): Promise<unknown | AgentError> {
-    // First attempt
+    const fullPrompt = `${systemPrompt}\n\n${userContent}`;
+
     let rawText: string;
     try {
-      rawText = await this.venice.chat([
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userContent },
-      ]);
-    } catch (err) {
-      if (err instanceof VeniceUnavailableError) {
-        return { error: 'VENICE_UNAVAILABLE' };
-      }
-      console.error(`[${this.constructor.name}] Unexpected error calling Venice:`, err instanceof Error ? err.message : 'unknown');
+      rawText = await this.venice.complete(fullPrompt, this.getAgentType());
+    } catch {
       return { error: 'VENICE_UNAVAILABLE' };
     }
 
@@ -170,12 +124,9 @@ export abstract class BaseAgent {
       }
     }
 
-    // Retry with JSON mode addendum
     try {
-      const retryText = await this.venice.chat([
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userContent + jsonModeAddendum },
-      ]);
+      const retryPrompt = `${systemPrompt}\n\n${userContent}${jsonModeAddendum}`;
+      const retryText = await this.venice.complete(retryPrompt, this.getAgentType());
 
       const retryParsed = this.parseJsonResponse(retryText);
       if (retryParsed !== null) {
@@ -184,11 +135,7 @@ export abstract class BaseAgent {
           return retryValidated;
         }
       }
-    } catch (err) {
-      if (err instanceof VeniceUnavailableError) {
-        return { error: 'VENICE_UNAVAILABLE' };
-      }
-      console.error(`[${this.constructor.name}] Unexpected error on Venice retry:`, err instanceof Error ? err.message : 'unknown');
+    } catch {
       return { error: 'VENICE_UNAVAILABLE' };
     }
 

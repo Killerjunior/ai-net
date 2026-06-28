@@ -1,9 +1,5 @@
-/**
- * Unit tests for ReportAgent
- */
-
 import { ReportAgent, InsufficientContextError } from '../../../src/agents/report/report';
-import { VeniceClient, VeniceUnavailableError } from '../../../src/agents/research/veniceClient';
+import { VeniceClient } from '../../../src/venice/index';
 
 describe('ReportAgent', () => {
   let mockVeniceClient: jest.Mocked<VeniceClient>;
@@ -11,7 +7,11 @@ describe('ReportAgent', () => {
 
   beforeEach(() => {
     mockVeniceClient = {
-      chat: jest.fn(),
+      complete: jest.fn(),
+      stream: jest.fn(),
+      getModelFor: jest.fn().mockReturnValue('venice-xl'),
+      getCircuitState: jest.fn().mockReturnValue('CLOSED'),
+      getFailureCount: jest.fn().mockReturnValue(0),
     } as any;
 
     agent = new ReportAgent({
@@ -69,7 +69,7 @@ describe('ReportAgent', () => {
         generatedAt: '2025-01-01T00:00:00.000Z',
       };
 
-      mockVeniceClient.chat.mockResolvedValueOnce(JSON.stringify(mockResponse));
+      mockVeniceClient.complete.mockResolvedValueOnce(JSON.stringify(mockResponse));
 
       const result = await agent.execute({
         taskId: 'task-1',
@@ -124,11 +124,11 @@ describe('ReportAgent', () => {
             sourceAgents: ['test-1'],
           },
         ],
-        wordCount: 14, // Proper word count
+        wordCount: 14,
         generatedAt: '2025-01-01T00:00:00.000Z',
       };
 
-      mockVeniceClient.chat.mockResolvedValueOnce(JSON.stringify(mockResponse));
+      mockVeniceClient.complete.mockResolvedValueOnce(JSON.stringify(mockResponse));
 
       const result = await agent.execute({
         taskId: 'task-1',
@@ -139,7 +139,6 @@ describe('ReportAgent', () => {
 
       expect('error' in result).toBe(false);
       if (!('error' in result)) {
-        // Actual word count: 6 + 4 + 2 + 3 + 1 = 16 words
         expect(result.wordCount).toBe(16);
       }
     });
@@ -158,7 +157,7 @@ describe('ReportAgent', () => {
         generatedAt: '',
       };
 
-      mockVeniceClient.chat.mockResolvedValueOnce(JSON.stringify(mockResponse));
+      mockVeniceClient.complete.mockResolvedValueOnce(JSON.stringify(mockResponse));
 
       await agent.execute({
         taskId: 'task-1',
@@ -167,12 +166,9 @@ describe('ReportAgent', () => {
         upstreamResults: mockUpstreamResults,
       });
 
-      expect(mockVeniceClient.chat).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            content: expect.stringContaining('Upstream Results:'),
-          }),
-        ])
+      expect(mockVeniceClient.complete).toHaveBeenCalledWith(
+        expect.stringContaining('Upstream Results:'),
+        'report'
       );
     });
   });
@@ -210,13 +206,12 @@ describe('ReportAgent', () => {
             content: 'Summary only',
             sourceAgents: [],
           },
-          // Missing other mandatory sections
         ],
         wordCount: 2,
         generatedAt: '2025-01-01T00:00:00.000Z',
       };
 
-      mockVeniceClient.chat
+      mockVeniceClient.complete
         .mockResolvedValueOnce(JSON.stringify(incompleteResponse))
         .mockResolvedValueOnce(JSON.stringify(incompleteResponse));
 
@@ -244,7 +239,7 @@ describe('ReportAgent', () => {
         generatedAt: '2025-01-01T00:00:00.000Z',
       };
 
-      mockVeniceClient.chat
+      mockVeniceClient.complete
         .mockResolvedValueOnce(JSON.stringify(wrongHeadingsResponse))
         .mockResolvedValueOnce(JSON.stringify(wrongHeadingsResponse));
 
@@ -265,7 +260,7 @@ describe('ReportAgent', () => {
         invalidField: 'invalid data',
       };
 
-      mockVeniceClient.chat
+      mockVeniceClient.complete
         .mockResolvedValueOnce(JSON.stringify(invalidResponse))
         .mockResolvedValueOnce(JSON.stringify(invalidResponse));
 
@@ -281,9 +276,9 @@ describe('ReportAgent', () => {
   });
 
   describe('execute - Venice failure', () => {
-    it('should return VENICE_UNAVAILABLE on VeniceUnavailableError', async () => {
-      mockVeniceClient.chat.mockRejectedValueOnce(
-        new VeniceUnavailableError('Service unavailable')
+    it('should return VENICE_UNAVAILABLE on error', async () => {
+      mockVeniceClient.complete.mockRejectedValueOnce(
+        new Error('Service unavailable')
       );
 
       const result = await agent.execute({
@@ -297,7 +292,7 @@ describe('ReportAgent', () => {
     });
 
     it('should return VENICE_UNAVAILABLE on unexpected error', async () => {
-      mockVeniceClient.chat.mockRejectedValueOnce(
+      mockVeniceClient.complete.mockRejectedValueOnce(
         new Error('Unexpected network error')
       );
 
@@ -314,7 +309,7 @@ describe('ReportAgent', () => {
 
   describe('healthCheck', () => {
     it('should return true when Venice is available', async () => {
-      mockVeniceClient.chat.mockResolvedValueOnce('Hello back');
+      mockVeniceClient.complete.mockResolvedValueOnce('Hello back');
 
       const result = await agent.healthCheck();
 
@@ -322,8 +317,8 @@ describe('ReportAgent', () => {
     });
 
     it('should return false when Venice is unavailable', async () => {
-      mockVeniceClient.chat.mockRejectedValueOnce(
-        new VeniceUnavailableError('Service unavailable')
+      mockVeniceClient.complete.mockRejectedValueOnce(
+        new Error('Service unavailable')
       );
 
       const result = await agent.healthCheck();

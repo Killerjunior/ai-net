@@ -1,9 +1,5 @@
-/**
- * Unit tests for RiskAgent
- */
-
 import { RiskAgent } from '../../../src/agents/risk/risk';
-import { VeniceClient, VeniceUnavailableError } from '../../../src/agents/research/veniceClient';
+import { VeniceClient } from '../../../src/venice/index';
 
 describe('RiskAgent', () => {
   let mockVeniceClient: jest.Mocked<VeniceClient>;
@@ -11,7 +7,11 @@ describe('RiskAgent', () => {
 
   beforeEach(() => {
     mockVeniceClient = {
-      chat: jest.fn(),
+      complete: jest.fn(),
+      stream: jest.fn(),
+      getModelFor: jest.fn().mockReturnValue('venice-xl'),
+      getCircuitState: jest.fn().mockReturnValue('CLOSED'),
+      getFailureCount: jest.fn().mockReturnValue(0),
     } as any;
 
     agent = new RiskAgent({
@@ -43,7 +43,7 @@ describe('RiskAgent', () => {
         overallRiskScore: 3.5,
       };
 
-      mockVeniceClient.chat.mockResolvedValueOnce(JSON.stringify(mockResponse));
+      mockVeniceClient.complete.mockResolvedValueOnce(JSON.stringify(mockResponse));
 
       const result = await agent.execute({
         taskId: 'task-1',
@@ -55,11 +55,11 @@ describe('RiskAgent', () => {
         risks: [
           {
             ...mockResponse.risks[0],
-            critical: true, // likelihood 5 >= 4 AND impact 4 >= 4
+            critical: true,
           },
           {
             ...mockResponse.risks[1],
-            critical: false, // likelihood 2 < 4
+            critical: false,
           },
         ],
         overallRiskScore: 3.5,
@@ -80,7 +80,7 @@ describe('RiskAgent', () => {
         overallRiskScore: 4.0,
       };
 
-      mockVeniceClient.chat.mockResolvedValueOnce(JSON.stringify(mockResponse));
+      mockVeniceClient.complete.mockResolvedValueOnce(JSON.stringify(mockResponse));
 
       const result = await agent.execute({
         taskId: 'task-1',
@@ -101,9 +101,9 @@ describe('RiskAgent', () => {
         invalidField: 'invalid data',
       };
 
-      mockVeniceClient.chat
+      mockVeniceClient.complete
         .mockResolvedValueOnce(JSON.stringify(invalidResponse))
-        .mockResolvedValueOnce(JSON.stringify(invalidResponse)); // retry also fails
+        .mockResolvedValueOnce(JSON.stringify(invalidResponse));
 
       const result = await agent.execute({
         taskId: 'task-1',
@@ -116,9 +116,9 @@ describe('RiskAgent', () => {
   });
 
   describe('execute - Venice failure', () => {
-    it('should return VENICE_UNAVAILABLE on VeniceUnavailableError', async () => {
-      mockVeniceClient.chat.mockRejectedValueOnce(
-        new VeniceUnavailableError('Service unavailable')
+    it('should return VENICE_UNAVAILABLE on error', async () => {
+      mockVeniceClient.complete.mockRejectedValueOnce(
+        new Error('Service unavailable')
       );
 
       const result = await agent.execute({
@@ -131,7 +131,7 @@ describe('RiskAgent', () => {
     });
 
     it('should return VENICE_UNAVAILABLE on unexpected error', async () => {
-      mockVeniceClient.chat.mockRejectedValueOnce(
+      mockVeniceClient.complete.mockRejectedValueOnce(
         new Error('Unexpected network error')
       );
 
@@ -147,7 +147,7 @@ describe('RiskAgent', () => {
 
   describe('healthCheck', () => {
     it('should return true when Venice is available', async () => {
-      mockVeniceClient.chat.mockResolvedValueOnce('Hello back');
+      mockVeniceClient.complete.mockResolvedValueOnce('Hello back');
 
       const result = await agent.healthCheck();
 
@@ -155,8 +155,8 @@ describe('RiskAgent', () => {
     });
 
     it('should return false when Venice is unavailable', async () => {
-      mockVeniceClient.chat.mockRejectedValueOnce(
-        new VeniceUnavailableError('Service unavailable')
+      mockVeniceClient.complete.mockRejectedValueOnce(
+        new Error('Service unavailable')
       );
 
       const result = await agent.healthCheck();

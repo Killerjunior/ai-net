@@ -1,9 +1,5 @@
-/**
- * Unit tests for CodingAgent
- */
-
 import { CodingAgent, UnsafeCodeRequestError } from '../../../src/agents/coding/coding';
-import { VeniceClient, VeniceUnavailableError } from '../../../src/agents/research/veniceClient';
+import { VeniceClient } from '../../../src/venice/index';
 
 describe('CodingAgent', () => {
   let mockVeniceClient: jest.Mocked<VeniceClient>;
@@ -11,7 +7,11 @@ describe('CodingAgent', () => {
 
   beforeEach(() => {
     mockVeniceClient = {
-      chat: jest.fn(),
+      complete: jest.fn(),
+      stream: jest.fn(),
+      getModelFor: jest.fn().mockReturnValue('venice-code'),
+      getCircuitState: jest.fn().mockReturnValue('CLOSED'),
+      getFailureCount: jest.fn().mockReturnValue(0),
     } as any;
 
     agent = new CodingAgent({
@@ -30,7 +30,7 @@ describe('CodingAgent', () => {
         testScaffold: 'def test_hello_world():\n    assert hello_world() == "Hello, World!"',
       };
 
-      mockVeniceClient.chat.mockResolvedValueOnce(JSON.stringify(mockResponse));
+      mockVeniceClient.complete.mockResolvedValueOnce(JSON.stringify(mockResponse));
 
       const result = await agent.execute({
         taskId: 'task-1',
@@ -48,7 +48,7 @@ describe('CodingAgent', () => {
         explanation: 'Adds two numbers together',
       };
 
-      mockVeniceClient.chat.mockResolvedValueOnce(JSON.stringify(mockResponse));
+      mockVeniceClient.complete.mockResolvedValueOnce(JSON.stringify(mockResponse));
 
       const result = await agent.execute({
         taskId: 'task-1',
@@ -113,7 +113,7 @@ describe('CodingAgent', () => {
         expect(error).toBeInstanceOf(UnsafeCodeRequestError);
       }
 
-      expect(mockVeniceClient.chat).not.toHaveBeenCalled();
+      expect(mockVeniceClient.complete).not.toHaveBeenCalled();
     });
   });
 
@@ -123,9 +123,9 @@ describe('CodingAgent', () => {
         invalidField: 'invalid data',
       };
 
-      mockVeniceClient.chat
+      mockVeniceClient.complete
         .mockResolvedValueOnce(JSON.stringify(invalidResponse))
-        .mockResolvedValueOnce(JSON.stringify(invalidResponse)); // retry also fails
+        .mockResolvedValueOnce(JSON.stringify(invalidResponse));
 
       const result = await agent.execute({
         taskId: 'task-1',
@@ -138,9 +138,9 @@ describe('CodingAgent', () => {
   });
 
   describe('execute - Venice failure', () => {
-    it('should return VENICE_UNAVAILABLE on VeniceUnavailableError', async () => {
-      mockVeniceClient.chat.mockRejectedValueOnce(
-        new VeniceUnavailableError('Service unavailable')
+    it('should return VENICE_UNAVAILABLE on error', async () => {
+      mockVeniceClient.complete.mockRejectedValueOnce(
+        new Error('Service unavailable')
       );
 
       const result = await agent.execute({
@@ -153,7 +153,7 @@ describe('CodingAgent', () => {
     });
 
     it('should return VENICE_UNAVAILABLE on unexpected error', async () => {
-      mockVeniceClient.chat.mockRejectedValueOnce(
+      mockVeniceClient.complete.mockRejectedValueOnce(
         new Error('Unexpected network error')
       );
 
@@ -169,7 +169,7 @@ describe('CodingAgent', () => {
 
   describe('healthCheck', () => {
     it('should return true when Venice is available', async () => {
-      mockVeniceClient.chat.mockResolvedValueOnce('Hello back');
+      mockVeniceClient.complete.mockResolvedValueOnce('Hello back');
 
       const result = await agent.healthCheck();
 
@@ -177,8 +177,8 @@ describe('CodingAgent', () => {
     });
 
     it('should return false when Venice is unavailable', async () => {
-      mockVeniceClient.chat.mockRejectedValueOnce(
-        new VeniceUnavailableError('Service unavailable')
+      mockVeniceClient.complete.mockRejectedValueOnce(
+        new Error('Service unavailable')
       );
 
       const result = await agent.healthCheck();
