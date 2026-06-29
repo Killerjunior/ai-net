@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const pkg = require("../../package.json");
+
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
   STELLAR_NETWORK: z.enum(["testnet", "mainnet", "local", "futurenet"]).default("testnet"),
@@ -8,6 +11,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   STELLAR_COORDINATOR_SECRET: z.string().optional(),
   STELLAR_TEST_SECRET: z.string().optional(),
+  NPM_PACKAGE_VERSION: z.string().default(pkg.version ?? "0.1.0"),
 });
 
 let _config: z.infer<typeof envSchema> | null = null;

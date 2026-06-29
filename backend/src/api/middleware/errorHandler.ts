@@ -1,16 +1,10 @@
 import type { Request, Response, NextFunction } from "express";
-import pino from "pino";
+import { createLogger } from "../../utils/logger";
 
-const logger = pino({
-  level: process.env.LOG_LEVEL ?? "info",
-  transport:
-    process.env.NODE_ENV !== "production"
-      ? { target: "pino/file", options: { destination: 1 } }
-      : undefined,
-});
+const log = createLogger();
 
 export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction): void {
-  logger.error(
+  log.error(
     {
       error: err.message,
       stack: err.stack,

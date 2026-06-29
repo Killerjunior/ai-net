@@ -10,7 +10,7 @@ router.get("/", (_req: Request, res: Response) => {
   res.json({
     status: "ok",
     uptime: Math.floor((Date.now() - startTime) / 1000),
-    version: process.env.npm_package_version ?? "0.1.0",
+    version: config.NPM_PACKAGE_VERSION,
     stellarNetwork: config.STELLAR_NETWORK,
   });
 });
