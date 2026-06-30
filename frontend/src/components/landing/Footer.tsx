@@ -4,7 +4,7 @@ import { Github, Twitter, MessageCircle, Heart } from 'lucide-react'
 
 const GITHUB_URL = 'https://github.com/Epta-Node/ai-net'
 const TWITTER_URL = 'https://x.com/GuildNet_'
-const DOCS_URL = 'https://docs.google.com/document/d/1yGcTxu5hSBiaxoAWKKxC-TdH3OdKgRYL/edit?usp=drive_link&ouid=107270187144083702546&rtpof=true&sd=true'
+const DOCS_URL = 'https://docs.google.com/document/d/1yGcTxu5hSBiaxoAWKKxC-TdH3OdKgRYL/edit?usp=sharing&ouid=107270187144083702546&rtpof=true&sd=true'
 
 const footerLinks = [
   {
