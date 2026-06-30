@@ -95,21 +95,23 @@ const Navbar: React.FC = () => {
         </div>
 
         {/* Center: Global Search (Desktop) */}
-        <div className="relative flex-1 max-w-[360px] mx-auto sm:mx-0 sm:flex-none sm:w-[280px] hidden sm:block">
-          <div className="absolute inset-y-0 left-0 flex items-center pl-[13px] pointer-events-none">
-            <Search size={15} className={`transition-colors duration-200 ${searchFocused ? 'text-accent-cyan' : 'text-text-secondary/40'}`} />
-          </div>
-          <input
-            type="text"
-            placeholder="Search agents, tasks..."
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            className="w-full h-[34px] rounded-lg bg-background-surface/50 pl-[38px] pr-[68px] text-[13px] text-text-primary placeholder:text-text-secondary/30 outline-none border border-border-subtle/60 focus:border-accent-cyan/40 focus:bg-background-surface/80 focus:shadow-[0_0_12px_rgba(56,189,248,0.07)] transition-all"
-          />
-          <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-background-surface-alt/60 border border-border-subtle/40">
-              <Command size={10} className="text-text-secondary/40" />
-              <span className="text-[10px] font-medium text-text-secondary/40">K</span>
+        <div className="flex-1 max-w-[360px] mx-auto sm:mx-0 sm:flex-none sm:w-[280px] hidden sm:block">
+          <div className={`flex items-center h-[34px] rounded-lg border transition-all ${searchFocused ? 'border-accent-cyan/40 bg-background-surface/80 shadow-[0_0_12px_rgba(56,189,248,0.07)]' : 'border-border-subtle/60 bg-background-surface/50'}`}>
+            <div className="flex items-center justify-center pl-3">
+              <Search size={15} className={`transition-colors duration-200 ${searchFocused ? 'text-accent-cyan' : 'text-text-secondary/40'}`} />
+            </div>
+            <input
+              type="text"
+              placeholder="Search agents, tasks..."
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              className="flex-1 bg-transparent pl-2.5 pr-2 text-[13px] text-text-primary placeholder:text-text-secondary/30 outline-none min-w-0"
+            />
+            <div className="flex items-center pr-2.5">
+              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-background-surface-alt/60 border border-border-subtle/40">
+                <Command size={10} className="text-text-secondary/40" />
+                <span className="text-[10px] font-medium text-text-secondary/40">K</span>
+              </div>
             </div>
           </div>
         </div>
@@ -191,14 +193,16 @@ const Navbar: React.FC = () => {
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <div className="relative">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary/40" />
+            <div className="flex items-center h-10 rounded-lg bg-background-surface border border-border-subtle/60">
+              <div className="flex items-center justify-center pl-3">
+                <Search size={15} className="text-text-secondary/40" />
+              </div>
               <input
                 ref={mobileSearchRef}
                 type="text"
                 placeholder="Search agents, tasks..."
                 onKeyDown={(e) => e.key === 'Escape' && setMobileSearchOpen(false)}
-                className="w-full h-10 rounded-lg bg-background-surface pl-10 pr-4 text-[14px] text-text-primary placeholder:text-text-secondary/30 outline-none border border-border-subtle/60 focus:border-accent-cyan/40 transition-all"
+                className="flex-1 bg-transparent pl-2.5 pr-3 text-[14px] text-text-primary placeholder:text-text-secondary/30 outline-none min-w-0"
               />
             </div>
           </motion.div>
