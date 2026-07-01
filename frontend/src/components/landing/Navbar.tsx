@@ -99,6 +99,9 @@ const Navbar: React.FC = () => {
         {/* Center: Global Search (Desktop) */}
         <div className="flex-1 max-w-[320px] mx-auto sm:mx-0 sm:flex-none sm:w-[260px] hidden sm:block">
           <div className="flex items-center w-full h-[32px] rounded-lg border border-border-subtle/60 bg-background-surface/40 hover:bg-background-surface/70 transition-all group focus-within:border-accent-cyan/30 focus-within:bg-background-surface/80 focus-within:shadow-[0_0_10px_rgba(56,189,248,0.05)]">
+            <div className="flex items-center gap-1.5 pl-2.5 pr-1 pointer-events-none">
+              <Search size={13} className="text-text-secondary/30 group-focus-within:text-accent-cyan/60 transition-colors" />
+            </div>
             <input
               ref={desktopInputRef}
               type="text"
@@ -110,18 +113,9 @@ const Navbar: React.FC = () => {
                 }
               }}
               placeholder="Search agents, tasks..."
-              className="flex-1 bg-transparent pl-2.5 pr-0 text-[12.5px] text-text-primary placeholder:text-text-secondary/25 outline-none min-w-0 tracking-wide"
+              className="flex-1 bg-transparent pl-0 pr-0 text-[12.5px] text-text-primary placeholder:text-text-secondary/25 outline-none min-w-0 tracking-wide"
             />
-            <div className="flex items-center gap-1.5 pr-2">
-              <button
-                onClick={() => {
-                  if (searchQuery.trim()) setMobileSearchOpen(true)
-                }}
-                className="flex items-center justify-center text-text-secondary/30 hover:text-text-primary transition-colors"
-                aria-label="Search"
-              >
-                <Search size={13} />
-              </button>
+            <div className="flex items-center pr-2 pl-1">
               <div className="flex items-center gap-0.5 px-1 py-0.5 rounded-[3px] bg-background-surface-alt/50 border border-border-subtle/30">
                 <Command size={9} className="text-text-secondary/30" />
                 <span className="text-[9px] font-semibold text-text-secondary/30">K</span>
