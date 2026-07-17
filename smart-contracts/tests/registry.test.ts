@@ -1,5 +1,16 @@
 import { registerAgent, discoverAgents, getAgent, lookupAgent, deregisterAgent, updatePricing, clearRegistry, clearCache } from '../src/registry/registry';
 
+function makeAgent(overrides: Partial<{ id: string; name: string; capability: string; priceXLM: number; stellarAddress: string }> = {}) {
+  return {
+    id: 'agent-1',
+    name: 'Test Agent',
+    capability: 'research',
+    priceXLM: 1,
+    stellarAddress: '',
+    ...overrides,
+  };
+}
+
 describe('Agent Registry', () => {
   beforeEach(() => {
     clearRegistry();
@@ -38,15 +49,15 @@ describe('Agent Registry', () => {
       expect(getAgent('t2')?.name).toBe('Test2');
     });
 
-    it('returns null for unknown id', () => {
-      expect(getAgent('unknown-id')).toBeNull();
+    it('returns undefined for unknown id', () => {
+      expect(getAgent('unknown-id')).toBeUndefined();
     });
 
-    it('returns null after cache expires', async () => {
+    it('returns undefined after cache expires', async () => {
       await registerAgent(makeAgent());
       const realNow = Date.now;
       global.Date.now = jest.fn(() => realNow() + 31_000);
-      expect(getAgent('agent-1')).toBeNull();
+      expect(getAgent('agent-1')).toBeUndefined();
       global.Date.now = realNow;
     });
   });

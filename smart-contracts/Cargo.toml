@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "contracts/agent_registry",
+    "contracts/error-resolver",
+]
+resolver = "2"

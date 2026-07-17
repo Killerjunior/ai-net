@@ -31,7 +31,7 @@ jobs:
         run: |
           test -f backend/package.json && echo "backend=true" >> "$GITHUB_OUTPUT" || echo "backend=false" >> "$GITHUB_OUTPUT"
           test -f frontend/package.json && echo "frontend=true" >> "$GITHUB_OUTPUT" || echo "frontend=false" >> "$GITHUB_OUTPUT"
-          test -f smart-contracts/Cargo.toml && echo "smart_contracts_cargo=true" >> "$GITHUB_OUTPUT" || echo "smart_contracts_cargo=false" >> "$GITHUB_OUTPUT"
+          test -d smart-contracts/contracts && echo "smart_contracts_cargo=true" >> "$GITHUB_OUTPUT" || echo "smart_contracts_cargo=false" >> "$GITHUB_OUTPUT"
 
   backend:
     name: Backend

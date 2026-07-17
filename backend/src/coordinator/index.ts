@@ -1,7 +1,5 @@
 import type { DagNode } from "../types/task";
 
-const AGENT_TYPES = ["research", "risk", "coding", "design", "report"] as const;
-
 /**
  * Deterministically decomposes a prompt into a DAG of agent nodes.
  * No external calls — pure heuristic for now.

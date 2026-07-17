@@ -1,5 +1,5 @@
 import { Server } from "@stellar/stellar-sdk/rpc";
-import { scValToNative, xdr } from "@stellar/stellar-base";
+import { scValToNative } from "@stellar/stellar-base";
 import { getAgentDb, createAgentDb } from "../db/agents";
 
 const RPC_URL = process.env.SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org";
