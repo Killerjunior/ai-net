@@ -1,4 +1,4 @@
-import { VeniceClient } from '../../src/venice/client';
+import { VeniceClient } from '../../src/services/venice/client';
 import { CircuitBreaker } from '../../src/venice/circuitBreaker';
 import { CircuitOpenError, TokenBudgetExceededError } from '../../src/venice/errors';
 
