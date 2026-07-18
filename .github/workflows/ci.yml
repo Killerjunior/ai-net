@@ -171,8 +171,9 @@ jobs:
 
       - name: Set up Rust
         if: ${{ needs.detect_projects.outputs.smart_contracts_cargo == 'true' }}
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: 1.84.0
           components: clippy, rustfmt
           targets: wasm32v1-none
 
