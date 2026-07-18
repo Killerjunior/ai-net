@@ -1,7 +1,19 @@
-/** DAG node statuses */
-export type NodeStatus = 'pending' | 'running' | 'completed' | 'failed';
+/**
+ * Coordinator-specific types.
+ *
+ * TaskStatus, NodeStatus, DAGEventType, and DAGEvent are re-exported from the
+ * canonical source at ../types/task. Do NOT redefine them here.
+ */
+import type {
+  TaskStatus,
+  NodeStatus,
+  DAGEventType,
+  DAGEvent,
+} from "../types/task";
 
-/** A single node in the execution DAG */
+export type { TaskStatus, NodeStatus, DAGEventType, DAGEvent };
+
+/** A single node in the execution DAG (coordinator runtime representation). */
 export interface DAGNode {
   nodeId: string;
   /** Agent type / capability required */
@@ -15,40 +27,15 @@ export interface DAGNode {
   error?: string;
 }
 
-/** Persisted task record */
+/** Persisted task record (coordinator runtime representation). */
 export interface Task {
   taskId: string;
   prompt: string;
   walletPublicKey: string;
-  status: 'queued' | 'running' | 'completed' | 'failed';
+  status: TaskStatus;
   dag: DAGNode[];
   createdAt: string;
   updatedAt: string;
   /** Correlation ID for distributed tracing across HTTP request → coordinator → agent */
   requestId?: string;
-}
-
-/** Events emitted by the coordinator */
-export type DAGEventType =
-  | 'node_started'
-  | 'node_completed'
-  | 'node_failed'
-  | 'payment_locked'
-  | 'payment_released'
-  | 'task_completed'
-  | 'task_failed';
-
-export interface DAGEvent {
-  type: DAGEventType;
-  taskId: string;
-  nodeId?: string;
-  timestamp: string;
-  payload?: unknown;
-  /**
-   * Per-task monotonic sequence number assigned by the EventBus when the event
-   * is emitted. Starts at 0 for each taskId and increments by 1 per event, so
-   * a client can resume a stream from a known cursor. Absent only on events
-   * that have not yet passed through the bus.
-   */
-  seq?: number;
 }
