@@ -111,7 +111,10 @@ fn e2e_deploy_register_lookup_deregister() {
     ]);
     assert!(is_paused.status.success());
     let paused_out = String::from_utf8_lossy(&is_paused.stdout);
-    assert!(paused_out.contains("true"), "expected paused=true, got: {paused_out}");
+    assert!(
+        paused_out.contains("true"),
+        "expected paused=true, got: {paused_out}"
+    );
 
     // ── unpause ──────────────────────────────────────────────────────────────
     let unpause = stellar(&[
@@ -192,7 +195,10 @@ fn e2e_deploy_register_lookup_deregister() {
     ]);
     assert!(is_frozen.status.success());
     let frozen_out = String::from_utf8_lossy(&is_frozen.stdout);
-    assert!(frozen_out.contains("true"), "expected frozen=true, got: {frozen_out}");
+    assert!(
+        frozen_out.contains("true"),
+        "expected frozen=true, got: {frozen_out}"
+    );
 
     // ── unfreeze ─────────────────────────────────────────────────────────────
     let unfreeze = stellar(&[

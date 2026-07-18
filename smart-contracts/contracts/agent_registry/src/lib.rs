@@ -92,20 +92,16 @@ impl AgentRegistryContract {
     pub fn pause(env: Env) -> Result<(), Error> {
         require_admin(&env)?;
         env.storage().instance().set(&DataKey::Paused, &true);
-        env.events().publish(
-            (symbol_short!("registry"), symbol_short!("paused")),
-            (),
-        );
+        env.events()
+            .publish((symbol_short!("registry"), symbol_short!("paused")), ());
         Ok(())
     }
 
     pub fn unpause(env: Env) -> Result<(), Error> {
         require_admin(&env)?;
         env.storage().instance().set(&DataKey::Paused, &false);
-        env.events().publish(
-            (symbol_short!("registry"), symbol_short!("unpaused")),
-            (),
-        );
+        env.events()
+            .publish((symbol_short!("registry"), symbol_short!("unpaused")), ());
         Ok(())
     }
 
@@ -528,8 +524,7 @@ mod test {
         let (env, client, admin) = setup_with_admin();
         client.freeze_agent(&Symbol::new(&env, "frozen_id"));
         let owner = Address::generate(&env);
-        let result =
-            client.try_register_agent(&make_record(&env, "frozen_id", "test", owner));
+        let result = client.try_register_agent(&make_record(&env, "frozen_id", "test", owner));
         assert_eq!(result, Err(Ok(Error::AgentFrozen)));
     }
 
