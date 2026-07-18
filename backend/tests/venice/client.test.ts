@@ -115,6 +115,41 @@ describe('VeniceClient', () => {
     });
   });
 
+  describe('chat', () => {
+    it('sends caller-provided messages through the shared completion endpoint', async () => {
+      mockFetch.mockResolvedValueOnce(okResponse('chat response'));
+
+      const result = await client.chat(
+        [
+          { role: 'system', content: 'You are concise.' },
+          { role: 'user', content: 'Summarize this.' },
+        ],
+        { model: 'custom-model', temperature: 0.4, maxTokens: 512 }
+      );
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(result).toBe('chat response');
+      expect(body).toEqual({
+        model: 'custom-model',
+        messages: [
+          { role: 'system', content: 'You are concise.' },
+          { role: 'user', content: 'Summarize this.' },
+        ],
+        temperature: 0.4,
+        max_tokens: 512,
+      });
+    });
+
+    it('uses the default chat model when one is not provided', async () => {
+      mockFetch.mockResolvedValueOnce(okResponse('chat response'));
+
+      await client.chat([{ role: 'user', content: 'Hello' }]);
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.model).toBe('llama-3.3-70b');
+    });
+  });
+
   describe('circuit breaker integration', () => {
     it('opens after 3 consecutive failures and rejects the 4th without HTTP', async () => {
       mockFetch
