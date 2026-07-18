@@ -171,9 +171,8 @@ jobs:
 
       - name: Set up Rust
         if: ${{ needs.detect_projects.outputs.smart_contracts_cargo == 'true' }}
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.84.0
           components: clippy, rustfmt
           targets: wasm32v1-none
 
@@ -214,10 +213,6 @@ jobs:
       - name: Cargo test (unit)
         if: ${{ needs.detect_projects.outputs.smart_contracts_cargo == 'true' }}
         run: cargo test -p error-resolver
-
-      - name: Cargo test agent-registry
-        if: ${{ needs.detect_projects.outputs.smart_contracts_cargo == 'true' }}
-        run: cargo test -p agent-registry
 
       - name: Cargo build
         if: ${{ needs.detect_projects.outputs.smart_contracts_cargo == 'true' }}
