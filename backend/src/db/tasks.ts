@@ -1,6 +1,9 @@
 import Database from "better-sqlite3";
 import path from "path";
 import type { Task, TaskStatus } from "../types/task";
+import { createLogger } from "../utils/logger";
+
+const logger = createLogger({ component: "task-db" });
 
 let _taskDb: Database.Database | null = null;
 
@@ -8,6 +11,15 @@ export function getTaskDb(dbPath?: string): Database.Database {
   if (!_taskDb) {
     const filePath = dbPath ?? path.join(process.cwd(), "tasks.db");
     _taskDb = new Database(filePath);
+    _taskDb.pragma("busy_timeout = 5000");
+    _taskDb.pragma("journal_mode = WAL");
+    try {
+      (_taskDb as any).on("error", (err: Error) => {
+        logger.error({ err }, "task database error");
+      });
+    } catch {
+      // error events are emitted from node EventEmitter support in runtime
+    }
     _taskDb.exec(`
       CREATE TABLE IF NOT EXISTS tasks (
         id              TEXT PRIMARY KEY,

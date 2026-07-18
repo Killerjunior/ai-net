@@ -30,6 +30,42 @@ router.get("/deep", async (_req: Request, res: Response) => {
   });
 });
 
+router.get("/ready", async (_req: Request, res: Response) => {
+  const checks: Record<string, "ok" | "error"> = {
+    tasks: "ok",
+    payments: "ok",
+  };
+
+  try {
+    const tasksModule = await import("../../db/tasks");
+    const paymentsModule = await import("../../db/index");
+
+    try {
+      const taskDb = (tasksModule.getTaskDb as Function)();
+      taskDb.prepare("SELECT 1").get();
+    } catch (error) {
+      (checks as any).tasks = "error";
+    } finally {
+      (tasksModule.closeTaskDb as Function)();
+    }
+
+    try {
+      const paymentDb = (paymentsModule.getDb as Function)();
+      paymentDb.prepare("SELECT 1").get();
+    } catch (error) {
+      (checks as any).payments = "error";
+    } finally {
+      (paymentsModule.closeDb as Function)();
+    }
+  } catch (error) {
+    res.status(500).json({ status: "error", checks, error: String(error) });
+    return;
+  }
+
+  const allOk = Object.values(checks).every((status) => status === "ok");
+  res.status(allOk ? 200 : 500).json({ status: allOk ? "ok" : "error", checks });
+});
+
 async function checkVenice(apiKey: string): Promise<"ok" | "unreachable"> {
   try {
     const ctrl = new AbortController();
