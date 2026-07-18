@@ -12,6 +12,7 @@ const envSchema = z.object({
   STELLAR_COORDINATOR_SECRET: z.string().optional(),
   STELLAR_TEST_SECRET: z.string().optional(),
   NPM_PACKAGE_VERSION: z.string().default(pkg.version ?? "0.1.0"),
+  GRACEFUL_SHUTDOWN_TIMEOUT: z.coerce.number().int().positive().default(30),
 });
 
 let _config: z.infer<typeof envSchema> | null = null;
