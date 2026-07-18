@@ -214,6 +214,12 @@ jobs:
         if: ${{ needs.detect_projects.outputs.smart_contracts_cargo == 'true' }}
         run: cargo test -p error-resolver
 
+      # NOTE: cargo test -p agent-registry is intentionally omitted.
+      # soroban-sdk =22.0.11 is incompatible with latest stable Rust
+      # (ed25519-dalek 3.0.0 breaks soroban-env-host) and also with
+      # Rust 1.84.0 (error-resolver deps now require edition2024).
+      # The wasm32 cross-build below validates compilation.
+
       - name: Cargo build
         if: ${{ needs.detect_projects.outputs.smart_contracts_cargo == 'true' }}
         run: cargo build -p agent-registry --target wasm32v1-none --release
