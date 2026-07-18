@@ -17,8 +17,11 @@ pub struct AgentRecord {
 
 #[contracttype]
 pub enum DataKey {
+    Admin,
+    Paused,
     Agent(Symbol),
     CapabilityIndex(Symbol),
+    FrozenAgent(Symbol),
 }
 
 #[contracterror]
@@ -27,14 +30,130 @@ pub enum Error {
     NotFound = 1,
     Unauthorized = 2,
     AlreadyExists = 3,
+    ContractPaused = 4,
+    AgentFrozen = 5,
+    NotAdmin = 6,
 }
 
 #[contract]
 pub struct AgentRegistryContract;
 
+fn require_not_paused(env: &Env) -> Result<(), Error> {
+    let paused: bool = env
+        .storage()
+        .instance()
+        .get(&DataKey::Paused)
+        .unwrap_or(false);
+    if paused {
+        return Err(Error::ContractPaused);
+    }
+    Ok(())
+}
+
+fn require_admin(env: &Env) -> Result<Address, Error> {
+    let admin: Address = env
+        .storage()
+        .instance()
+        .get(&DataKey::Admin)
+        .ok_or(Error::NotAdmin)?;
+    admin.require_auth();
+    Ok(admin)
+}
+
+fn require_not_frozen(env: &Env, agent_id: &Symbol) -> Result<(), Error> {
+    let frozen: bool = env
+        .storage()
+        .persistent()
+        .get(&DataKey::FrozenAgent(agent_id.clone()))
+        .unwrap_or(false);
+    if frozen {
+        return Err(Error::AgentFrozen);
+    }
+    Ok(())
+}
+
 #[contractimpl]
 impl AgentRegistryContract {
+    pub fn initialize(env: Env, admin: Address) -> Result<(), Error> {
+        if env.storage().instance().has(&DataKey::Admin) {
+            return Err(Error::AlreadyExists);
+        }
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::Paused, &false);
+        Ok(())
+    }
+
+    pub fn set_admin(env: Env, new_admin: Address) -> Result<(), Error> {
+        require_admin(&env)?;
+        env.storage().instance().set(&DataKey::Admin, &new_admin);
+        Ok(())
+    }
+
+    pub fn pause(env: Env) -> Result<(), Error> {
+        require_admin(&env)?;
+        env.storage().instance().set(&DataKey::Paused, &true);
+        env.events().publish(
+            (symbol_short!("registry"), symbol_short!("paused")),
+            (),
+        );
+        Ok(())
+    }
+
+    pub fn unpause(env: Env) -> Result<(), Error> {
+        require_admin(&env)?;
+        env.storage().instance().set(&DataKey::Paused, &false);
+        env.events().publish(
+            (symbol_short!("registry"), symbol_short!("unpaused")),
+            (),
+        );
+        Ok(())
+    }
+
+    pub fn is_paused(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+    }
+
+    pub fn get_admin(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::Admin)
+    }
+
+    pub fn freeze_agent(env: Env, agent_id: Symbol) -> Result<(), Error> {
+        require_admin(&env)?;
+        env.storage()
+            .persistent()
+            .set(&DataKey::FrozenAgent(agent_id.clone()), &true);
+        env.events().publish(
+            (symbol_short!("registry"), symbol_short!("freeze")),
+            agent_id,
+        );
+        Ok(())
+    }
+
+    pub fn unfreeze_agent(env: Env, agent_id: Symbol) -> Result<(), Error> {
+        require_admin(&env)?;
+        env.storage()
+            .persistent()
+            .set(&DataKey::FrozenAgent(agent_id.clone()), &false);
+        env.events().publish(
+            (symbol_short!("registry"), symbol_short!("unfreeze")),
+            agent_id,
+        );
+        Ok(())
+    }
+
+    pub fn is_agent_frozen(env: Env, agent_id: Symbol) -> bool {
+        env.storage()
+            .persistent()
+            .get(&DataKey::FrozenAgent(agent_id))
+            .unwrap_or(false)
+    }
+
     pub fn register_agent(env: Env, record: AgentRecord) -> Result<(), Error> {
+        require_not_paused(&env)?;
+        require_not_frozen(&env, &record.id)?;
         record.owner.require_auth();
 
         let agent_key = DataKey::Agent(record.id.clone());
@@ -78,6 +197,7 @@ impl AgentRegistryContract {
     }
 
     pub fn deregister_agent(env: Env, agent_id: Symbol) -> Result<(), Error> {
+        require_not_paused(&env)?;
         let agent_key = DataKey::Agent(agent_id.clone());
         let record: AgentRecord = env
             .storage()
@@ -106,6 +226,8 @@ impl AgentRegistryContract {
     }
 
     pub fn update_pricing(env: Env, agent_id: Symbol, new_price: i128) -> Result<(), Error> {
+        require_not_paused(&env)?;
+        require_not_frozen(&env, &agent_id)?;
         let agent_key = DataKey::Agent(agent_id.clone());
         let mut record: AgentRecord = env
             .storage()
@@ -138,6 +260,16 @@ mod test {
         let id = env.register(AgentRegistryContract, ());
         let client = AgentRegistryContractClient::new(&env, &id);
         (env, client)
+    }
+
+    fn setup_with_admin() -> (Env, AgentRegistryContractClient<'static>, Address) {
+        let env = Env::default();
+        env.mock_all_auths();
+        let id = env.register(AgentRegistryContract, ());
+        let client = AgentRegistryContractClient::new(&env, &id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        (env, client, admin)
     }
 
     fn make_record(env: &Env, id: &str, capability: &str, owner: Address) -> AgentRecord {
@@ -229,11 +361,9 @@ mod test {
 
         let owner = Address::generate(&env);
 
-        // Register as owner (with mocked auth)
         env.mock_all_auths();
         client.register_agent(&make_record(&env, "agent3", "risk", owner.clone()));
 
-        // Attempt deregister without satisfying owner auth
         env.mock_auths(&[]);
         let result = client.try_deregister_agent(&Symbol::new(&env, "agent3"));
         assert!(result.is_err());
@@ -258,5 +388,201 @@ mod test {
             client.try_update_pricing(&Symbol::new(&env, "ghost"), &100_i128),
             Err(Ok(Error::NotFound))
         );
+    }
+
+    #[test]
+    fn initialize_sets_admin() {
+        let (env, client) = setup();
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        assert_eq!(client.get_admin(), Some(admin));
+    }
+
+    #[test]
+    fn initialize_cannot_be_called_twice() {
+        let (env, client) = setup();
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        assert_eq!(
+            client.try_initialize(&Address::generate(&env)),
+            Err(Ok(Error::AlreadyExists))
+        );
+    }
+
+    #[test]
+    fn set_admin_changes_admin() {
+        let (env, client, admin) = setup_with_admin();
+        let new_admin = Address::generate(&env);
+        client.set_admin(&new_admin);
+        assert_eq!(client.get_admin(), Some(new_admin));
+    }
+
+    #[test]
+    fn set_admin_requires_admin_auth() {
+        let env = Env::default();
+        let contract_id = env.register(AgentRegistryContract, ());
+        let client = AgentRegistryContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        env.mock_all_auths();
+        client.initialize(&admin);
+
+        env.mock_auths(&[]);
+        let result = client.try_set_admin(&Address::generate(&env));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn pause_blocks_register_agent() {
+        let (env, client, admin) = setup_with_admin();
+        client.pause();
+        let owner = Address::generate(&env);
+        let result = client.try_register_agent(&make_record(&env, "agent_p", "test", owner));
+        assert_eq!(result, Err(Ok(Error::ContractPaused)));
+    }
+
+    #[test]
+    fn pause_blocks_deregister_agent() {
+        let (env, client, admin) = setup_with_admin();
+        let owner = Address::generate(&env);
+        env.mock_all_auths();
+        client.register_agent(&make_record(&env, "agent_d", "test", owner));
+        client.pause();
+        let result = client.try_deregister_agent(&Symbol::new(&env, "agent_d"));
+        assert_eq!(result, Err(Ok(Error::ContractPaused)));
+    }
+
+    #[test]
+    fn pause_blocks_update_pricing() {
+        let (env, client, admin) = setup_with_admin();
+        let owner = Address::generate(&env);
+        env.mock_all_auths();
+        client.register_agent(&make_record(&env, "agent_u", "test", owner));
+        client.pause();
+        let result = client.try_update_pricing(&Symbol::new(&env, "agent_u"), &999_i128);
+        assert_eq!(result, Err(Ok(Error::ContractPaused)));
+    }
+
+    #[test]
+    fn unpause_allows_operations() {
+        let (env, client, admin) = setup_with_admin();
+        client.pause();
+        client.unpause();
+        let owner = Address::generate(&env);
+        client.register_agent(&make_record(&env, "agent_up", "test", owner));
+        let results = client.lookup_agents(&Symbol::new(&env, "test"));
+        assert_eq!(results.len(), 1);
+    }
+
+    #[test]
+    fn non_admin_cannot_pause() {
+        let env = Env::default();
+        let contract_id = env.register(AgentRegistryContract, ());
+        let client = AgentRegistryContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        env.mock_all_auths();
+        client.initialize(&admin);
+
+        env.mock_auths(&[]);
+        let result = client.try_pause();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn non_admin_cannot_unpause() {
+        let env = Env::default();
+        let contract_id = env.register(AgentRegistryContract, ());
+        let client = AgentRegistryContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        env.mock_all_auths();
+        client.initialize(&admin);
+        client.pause();
+
+        env.mock_auths(&[]);
+        let result = client.try_unpause();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn is_paused_reflects_state() {
+        let (env, client, admin) = setup_with_admin();
+        assert!(!client.is_paused());
+        client.pause();
+        assert!(client.is_paused());
+        client.unpause();
+        assert!(!client.is_paused());
+    }
+
+    #[test]
+    fn freeze_agent_blocks_update_pricing() {
+        let (env, client, admin) = setup_with_admin();
+        let owner = Address::generate(&env);
+        env.mock_all_auths();
+        client.register_agent(&make_record(&env, "agent_f", "test", owner));
+        client.freeze_agent(&Symbol::new(&env, "agent_f"));
+        let result = client.try_update_pricing(&Symbol::new(&env, "agent_f"), &777_i128);
+        assert_eq!(result, Err(Ok(Error::AgentFrozen)));
+    }
+
+    #[test]
+    fn freeze_agent_blocks_register() {
+        let (env, client, admin) = setup_with_admin();
+        client.freeze_agent(&Symbol::new(&env, "frozen_id"));
+        let owner = Address::generate(&env);
+        let result =
+            client.try_register_agent(&make_record(&env, "frozen_id", "test", owner));
+        assert_eq!(result, Err(Ok(Error::AgentFrozen)));
+    }
+
+    #[test]
+    fn unfreeze_agent_allows_operations() {
+        let (env, client, admin) = setup_with_admin();
+        let owner = Address::generate(&env);
+        env.mock_all_auths();
+        client.register_agent(&make_record(&env, "agent_unf", "test", owner));
+        client.freeze_agent(&Symbol::new(&env, "agent_unf"));
+        assert!(client.is_agent_frozen(Symbol::new(&env, "agent_unf")));
+        client.unfreeze_agent(&Symbol::new(&env, "agent_unf"));
+        assert!(!client.is_agent_frozen(Symbol::new(&env, "agent_unf")));
+        client.update_pricing(&Symbol::new(&env, "agent_unf"), &333_i128);
+        let results = client.lookup_agents(&Symbol::new(&env, "test"));
+        assert_eq!(results.get(0).unwrap().price_stroops, 333);
+    }
+
+    #[test]
+    fn non_admin_cannot_freeze() {
+        let env = Env::default();
+        let contract_id = env.register(AgentRegistryContract, ());
+        let client = AgentRegistryContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        env.mock_all_auths();
+        client.initialize(&admin);
+
+        env.mock_auths(&[]);
+        let result = client.try_freeze_agent(&Symbol::new(&env, "some_agent"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn non_admin_cannot_unfreeze() {
+        let env = Env::default();
+        let contract_id = env.register(AgentRegistryContract, ());
+        let client = AgentRegistryContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        env.mock_all_auths();
+        client.initialize(&admin);
+
+        env.mock_auths(&[]);
+        let result = client.try_unfreeze_agent(&Symbol::new(&env, "some_agent"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn is_agent_frozen_reflects_state() {
+        let (env, client, admin) = setup_with_admin();
+        assert!(!client.is_agent_frozen(Symbol::new(&env, "agent_state")));
+        client.freeze_agent(&Symbol::new(&env, "agent_state"));
+        assert!(client.is_agent_frozen(Symbol::new(&env, "agent_state")));
+        client.unfreeze_agent(&Symbol::new(&env, "agent_state"));
+        assert!(!client.is_agent_frozen(Symbol::new(&env, "agent_state")));
     }
 }
