@@ -26,6 +26,7 @@ export interface VeniceClientLike {
   getModelFor(agentType: AgentType): string;
   getCircuitState(): unknown;
   getFailureCount(): number;
+  chat(messages: VeniceMessage[], options?: VeniceChatOptions): Promise<string>;
   complete(prompt: string, agentType: AgentType, options?: CompleteOptions): Promise<string>;
   stream(
     prompt: string,
