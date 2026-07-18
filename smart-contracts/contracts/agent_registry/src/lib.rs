@@ -118,6 +118,24 @@ pub enum DataKey {
     Agent(Symbol),
     CapabilityIndex(Symbol),
     FrozenAgent(Symbol),
+    Error(BytesN<32>),
+    GasConfig,
+}
+
+/// Per-item outcome for batch registration (`Ok(agent_id)` / `Err(code)`).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BatchResult {
+    Ok(Symbol),
+    Err(Error),
+}
+
+/// Per-item outcome for batch error resolution.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum VoidBatchResult {
+    Ok,
+    Err(Error),
 }
 
 #[contracterror]
@@ -130,10 +148,80 @@ pub enum Error {
     ContractPaused = 4,
     AgentFrozen = 5,
     NotAdmin = 6,
+    AlreadyResolved = 7,
+    DuplicateInBatch = 8,
 }
 
 #[contract]
 pub struct AgentRegistryContract;
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+fn gas_config(env: &Env) -> GasConfig {
+    env.storage()
+        .instance()
+        .get(&DataKey::GasConfig)
+        .unwrap_or_else(GasConfig::default_config)
+}
+
+fn extend_ttl_for_key(env: &Env, key: &DataKey) {
+    // Only extend when the entry exists; extend_ttl panics on missing keys.
+    if env.storage().persistent().has(key) {
+        env.storage()
+            .persistent()
+            .extend_ttl(key, TTL_THRESHOLD, TTL_EXTEND_TO);
+    }
+}
+
+/// Extend TTL for a set of persistent keys in one pass (batched rent bump).
+fn extend_ttl_batch(env: &Env, keys: &Vec<DataKey>) {
+    for key in keys.iter() {
+        extend_ttl_for_key(env, &key);
+    }
+}
+
+fn append_capability_index(env: &Env, capability: &Symbol, agent_id: &Symbol) {
+    let cap_key = DataKey::CapabilityIndex(capability.clone());
+    let mut ids: Vec<Symbol> = env
+        .storage()
+        .persistent()
+        .get(&cap_key)
+        .unwrap_or_else(|| Vec::new(env));
+    ids.push_back(agent_id.clone());
+    env.storage().persistent().set(&cap_key, &ids);
+    extend_ttl_for_key(env, &cap_key);
+}
+
+/// True if `id` appears more than once in `agents` at or before `index`.
+fn is_duplicate_in_batch(agents: &Vec<AgentRecord>, index: u32, id: &Symbol) -> bool {
+    let mut seen = 0u32;
+    for i in 0..=index {
+        if let Some(a) = agents.get(i) {
+            if a.id == *id {
+                seen += 1;
+                if seen > 1 {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+fn is_duplicate_error_id(ids: &Vec<BytesN<32>>, index: u32, id: &BytesN<32>) -> bool {
+    let mut seen = 0u32;
+    for i in 0..=index {
+        if let Some(other) = ids.get(i) {
+            if other == *id {
+                seen += 1;
+                if seen > 1 {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
 
 fn require_not_paused(env: &Env) -> Result<(), Error> {
     let paused: bool = env
@@ -271,6 +359,14 @@ impl AgentRegistryContract {
         let mut results: Vec<BatchResult> = Vec::new(&env);
         let mut all_ok = true;
 
+        // Contract-level pause applies to the whole batch.
+        if require_not_paused(&env).is_err() {
+            for _ in 0..agents.len() {
+                results.push_back(BatchResult::Err(Error::ContractPaused));
+            }
+            return results;
+        }
+
         // ── Phase 1: validate (no writes) ────────────────────────────────────
         for i in 0..agents.len() {
             let record = agents.get(i).unwrap();
@@ -278,6 +374,12 @@ impl AgentRegistryContract {
             // Auth first — host will reject the whole invocation if any
             // required auth is missing; still checked per-item for clarity.
             record.owner.require_auth();
+
+            if require_not_frozen(&env, &record.id).is_err() {
+                results.push_back(BatchResult::Err(Error::AgentFrozen));
+                all_ok = false;
+                continue;
+            }
 
             if is_duplicate_in_batch(&agents, i, &record.id) {
                 results.push_back(BatchResult::Err(Error::DuplicateInBatch));
@@ -886,5 +988,246 @@ mod test {
         assert!(client.is_agent_frozen(Symbol::new(&env, "agent_state")));
         client.unfreeze_agent(&Symbol::new(&env, "agent_state"));
         assert!(!client.is_agent_frozen(Symbol::new(&env, "agent_state")));
+    }
+
+    // ── Batch registration ───────────────────────────────────────────────────
+
+    #[test]
+    fn register_agents_batch_success() {
+        let (env, client) = setup();
+        let mut agents = Vec::new(&env);
+        agents.push_back(make_record(&env, "b1", "research", Address::generate(&env)));
+        agents.push_back(make_record(&env, "b2", "research", Address::generate(&env)));
+        agents.push_back(make_record(&env, "b3", "coding", Address::generate(&env)));
+
+        let results = client.register_agents(&agents);
+        assert_eq!(results.len(), 3);
+        assert_eq!(
+            results.get(0).unwrap(),
+            BatchResult::Ok(Symbol::new(&env, "b1"))
+        );
+        assert_eq!(
+            results.get(1).unwrap(),
+            BatchResult::Ok(Symbol::new(&env, "b2"))
+        );
+        assert_eq!(
+            results.get(2).unwrap(),
+            BatchResult::Ok(Symbol::new(&env, "b3"))
+        );
+
+        assert_eq!(
+            client.lookup_agents(&Symbol::new(&env, "research")).len(),
+            2
+        );
+        assert_eq!(client.lookup_agents(&Symbol::new(&env, "coding")).len(), 1);
+    }
+
+    #[test]
+    fn register_agents_partial_failure_is_atomic() {
+        let (env, client) = setup();
+        // Pre-register one agent so the batch has a conflict.
+        client.register_agent(&make_record(
+            &env,
+            "exists",
+            "research",
+            Address::generate(&env),
+        ));
+
+        let mut agents = Vec::new(&env);
+        agents.push_back(make_record(
+            &env,
+            "new1",
+            "research",
+            Address::generate(&env),
+        ));
+        agents.push_back(make_record(
+            &env,
+            "exists",
+            "research",
+            Address::generate(&env),
+        ));
+        agents.push_back(make_record(&env, "new2", "coding", Address::generate(&env)));
+
+        let results = client.register_agents(&agents);
+        assert_eq!(results.len(), 3);
+        assert_eq!(
+            results.get(0).unwrap(),
+            BatchResult::Ok(Symbol::new(&env, "new1"))
+        );
+        assert_eq!(
+            results.get(1).unwrap(),
+            BatchResult::Err(Error::AlreadyExists)
+        );
+        assert_eq!(
+            results.get(2).unwrap(),
+            BatchResult::Ok(Symbol::new(&env, "new2"))
+        );
+
+        // Atomic: none of the new agents were written.
+        assert_eq!(
+            client.lookup_agents(&Symbol::new(&env, "research")).len(),
+            1
+        );
+        assert_eq!(client.lookup_agents(&Symbol::new(&env, "coding")).len(), 0);
+    }
+
+    #[test]
+    fn register_agents_duplicate_ids_in_batch() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+        let mut agents = Vec::new(&env);
+        agents.push_back(make_record(&env, "same", "research", owner.clone()));
+        agents.push_back(make_record(&env, "same", "coding", owner));
+
+        let results = client.register_agents(&agents);
+        assert_eq!(
+            results.get(0).unwrap(),
+            BatchResult::Ok(Symbol::new(&env, "same"))
+        );
+        assert_eq!(
+            results.get(1).unwrap(),
+            BatchResult::Err(Error::DuplicateInBatch)
+        );
+        // Atomic rollback — agent was not registered.
+        assert_eq!(
+            client.lookup_agents(&Symbol::new(&env, "research")).len(),
+            0
+        );
+        assert_eq!(client.lookup_agents(&Symbol::new(&env, "coding")).len(), 0);
+    }
+
+    #[test]
+    fn register_agents_empty_batch() {
+        let (env, client) = setup();
+        let agents = Vec::new(&env);
+        let results = client.register_agents(&agents);
+        assert_eq!(results.len(), 0);
+    }
+
+    // ── Batch error resolution ───────────────────────────────────────────────
+
+    #[test]
+    fn resolve_errors_batch_success() {
+        let (env, client) = setup();
+        let reporter = Address::generate(&env);
+        let id1 = error_id(&env, 1);
+        let id2 = error_id(&env, 2);
+        let id3 = error_id(&env, 3);
+
+        client.report_error(&id1, &reporter, &String::from_str(&env, "timeout"));
+        client.report_error(&id2, &reporter, &String::from_str(&env, "auth"));
+        client.report_error(&id3, &reporter, &String::from_str(&env, "budget"));
+
+        let mut ids = Vec::new(&env);
+        ids.push_back(id1.clone());
+        ids.push_back(id2.clone());
+        ids.push_back(id3.clone());
+
+        let results = client.resolve_errors(&ids, &Resolution::Fixed);
+        assert_eq!(results.len(), 3);
+        assert_eq!(results.get(0).unwrap(), VoidBatchResult::Ok);
+        assert_eq!(results.get(1).unwrap(), VoidBatchResult::Ok);
+        assert_eq!(results.get(2).unwrap(), VoidBatchResult::Ok);
+
+        let e1 = client.get_error(&id1).unwrap();
+        assert!(e1.resolved);
+        assert_eq!(e1.resolution, Resolution::Fixed);
+    }
+
+    #[test]
+    fn resolve_errors_partial_failure_is_atomic() {
+        let (env, client) = setup();
+        let reporter = Address::generate(&env);
+        let id1 = error_id(&env, 10);
+        let missing = error_id(&env, 99);
+
+        client.report_error(&id1, &reporter, &String::from_str(&env, "real"));
+
+        let mut ids = Vec::new(&env);
+        ids.push_back(id1.clone());
+        ids.push_back(missing);
+
+        let results = client.resolve_errors(&ids, &Resolution::Ignored);
+        assert_eq!(results.get(0).unwrap(), VoidBatchResult::Ok);
+        assert_eq!(
+            results.get(1).unwrap(),
+            VoidBatchResult::Err(Error::NotFound)
+        );
+
+        // Atomic: first error must still be unresolved.
+        let e1 = client.get_error(&id1).unwrap();
+        assert!(!e1.resolved);
+    }
+
+    #[test]
+    fn resolve_errors_already_resolved_fails_atomically() {
+        let (env, client) = setup();
+        let reporter = Address::generate(&env);
+        let id1 = error_id(&env, 20);
+        let id2 = error_id(&env, 21);
+
+        client.report_error(&id1, &reporter, &String::from_str(&env, "a"));
+        client.report_error(&id2, &reporter, &String::from_str(&env, "b"));
+
+        // Resolve id1 alone first via a one-item batch.
+        let mut first = Vec::new(&env);
+        first.push_back(id1.clone());
+        let r = client.resolve_errors(&first, &Resolution::Fixed);
+        assert_eq!(r.get(0).unwrap(), VoidBatchResult::Ok);
+
+        // Batch with already-resolved + open must not touch the open one.
+        let mut both = Vec::new(&env);
+        both.push_back(id1.clone());
+        both.push_back(id2.clone());
+        let results = client.resolve_errors(&both, &Resolution::Escalated);
+        assert_eq!(
+            results.get(0).unwrap(),
+            VoidBatchResult::Err(Error::AlreadyResolved)
+        );
+        assert_eq!(results.get(1).unwrap(), VoidBatchResult::Ok);
+
+        let e2 = client.get_error(&id2).unwrap();
+        assert!(!e2.resolved);
+    }
+
+    // ── Gas estimation ───────────────────────────────────────────────────────
+
+    #[test]
+    fn estimate_gas_register_scales_with_count() {
+        let (env, client) = setup();
+        let one = client.estimate_gas(&String::from_str(&env, "register_agent"), &1);
+        let ten = client.estimate_gas(&String::from_str(&env, "register_agents"), &10);
+
+        assert_eq!(one, GAS_REGISTER_AGENT);
+        // 100_000 + 9 * 55_556 = 600_004 ≈ 600k (issue #120)
+        assert_eq!(ten, GAS_REGISTER_AGENT + GAS_REGISTER_AGENT_MARGINAL * 9);
+        assert!(ten < 610_000);
+        // Batch of 10 is cheaper than 10 separate txs.
+        assert!(ten < GAS_REGISTER_AGENT * 10);
+    }
+
+    #[test]
+    fn estimate_gas_resolve_scales_with_count() {
+        let (env, client) = setup();
+        let one = client.estimate_gas(&String::from_str(&env, "resolve_error"), &1);
+        let ten = client.estimate_gas(&String::from_str(&env, "resolve_errors"), &10);
+
+        assert_eq!(one, GAS_RESOLVE_ERROR);
+        assert_eq!(ten, GAS_RESOLVE_ERROR + GAS_RESOLVE_ERROR_MARGINAL * 9);
+        assert!(ten < GAS_RESOLVE_ERROR * 10);
+    }
+
+    #[test]
+    fn estimate_gas_unknown_operation_is_zero() {
+        let (env, client) = setup();
+        let v = client.estimate_gas(&String::from_str(&env, "not_a_real_op"), &5);
+        assert_eq!(v, 0);
+    }
+
+    #[test]
+    fn estimate_gas_zero_count_is_zero() {
+        let (env, client) = setup();
+        let v = client.estimate_gas(&String::from_str(&env, "register_agents"), &0);
+        assert_eq!(v, 0);
     }
 }
