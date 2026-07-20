@@ -3,8 +3,10 @@ const path = require('path');
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  rootDir: path.resolve(__dirname, '../../backend'),
-  testMatch: ['<rootDir>/../tests/e2e/**/*.test.ts'],
+  rootDir: path.resolve(__dirname, '../../'),
+  roots: ['<rootDir>/tests/e2e'],
+  testMatch: ['<rootDir>/tests/e2e/**/*.test.ts'],
+  moduleDirectories: ['node_modules', '<rootDir>/backend/node_modules', '<rootDir>/smart-contracts/node_modules'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1'
   },
@@ -19,7 +21,7 @@ module.exports = {
       },
     }],
   },
-  setupFilesAfterEnv: ['<rootDir>/../tests/e2e/setup.ts'],
-  globalTeardown: '<rootDir>/../tests/e2e/teardown.ts',
+  setupFilesAfterEnv: ['<rootDir>/tests/e2e/setup.ts'],
+  globalTeardown: '<rootDir>/tests/e2e/teardown.ts',
   testTimeout: 30000
 };
