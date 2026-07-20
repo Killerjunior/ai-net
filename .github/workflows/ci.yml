@@ -80,6 +80,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    defaults:
+      run:
+        working-directory: backend
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -89,17 +93,19 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install root dependencies
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: backend/node_modules
+          key: ${{ runner.os }}-node-20-backend-${{ hashFiles('backend/package-lock.json', 'backend/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-20-backend-
+
+      - name: Install dependencies
         run: npm install
 
-      - name: Install backend dependencies
-        run: cd backend && npm install
-
-      - name: Install smart-contracts dependencies
-        run: cd smart-contracts && npm install
-
       - name: Run E2E Integration Tests (Scenarios A, B, C)
-        run: npm run test:e2e:coverage
+        run: npx jest --config ../tests/e2e/jest.config.js --runInBand
         env:
           NODE_ENV: test
           SKIP_STELLAR_ACCOUNT_VERIFY: "true"
@@ -108,9 +114,11 @@ jobs:
 
       - name: Upload E2E Coverage Report
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: e2e-coverage-report
           path: coverage-e2e/
+
 
 
   frontend:
