@@ -1,17 +1,22 @@
 const path = require('path');
 
+let tsJestPath;
+try {
+  tsJestPath = require.resolve('ts-jest');
+} catch (e) {
+  tsJestPath = 'ts-jest';
+}
+
 module.exports = {
-  preset: 'ts-jest',
   testEnvironment: 'node',
-  rootDir: path.resolve(__dirname, '../../'),
-  roots: ['<rootDir>/tests/e2e'],
-  testMatch: ['<rootDir>/tests/e2e/**/*.test.ts'],
-  moduleDirectories: ['node_modules', '<rootDir>/backend/node_modules', '<rootDir>/smart-contracts/node_modules'],
+  rootDir: path.resolve(__dirname, '../../backend'),
+  roots: ['<rootDir>/../tests/e2e'],
+  testMatch: ['<rootDir>/../tests/e2e/**/*.test.ts'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1'
   },
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
+    '^.+\\.tsx?$': [tsJestPath, {
       tsconfig: {
         strict: true,
         esModuleInterop: true,
@@ -21,7 +26,7 @@ module.exports = {
       },
     }],
   },
-  setupFilesAfterEnv: ['<rootDir>/tests/e2e/setup.ts'],
-  globalTeardown: '<rootDir>/tests/e2e/teardown.ts',
+  setupFilesAfterEnv: ['<rootDir>/../tests/e2e/setup.ts'],
+  globalTeardown: '<rootDir>/../tests/e2e/teardown.ts',
   testTimeout: 30000
 };
