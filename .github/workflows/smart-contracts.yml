@@ -15,7 +15,6 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_VERSION: stable
-  SOROBAN_CLI_VERSION: 22.0.11
 
 jobs:
   build-contracts:
@@ -31,11 +30,6 @@ jobs:
       with:
         components: rustfmt, clippy
         targets: wasm32v1-none
-        
-    - name: Install Soroban CLI
-      run: |
-        cargo install --version ${{ env.SOROBAN_CLI_VERSION }} soroban-cli
-        soroban --version
         
     - name: Cache cargo dependencies
       uses: actions/cache@v4
@@ -82,7 +76,6 @@ jobs:
           "build_info": {
             "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")",
             "rust_version": "${{ env.RUST_VERSION }}",
-            "soroban_cli_version": "${{ env.SOROBAN_CLI_VERSION }}",
             "git_commit": "${{ github.sha }}",
             "git_ref": "${{ github.ref }}",
             "runner_os": "${{ runner.os }}"
@@ -190,10 +183,6 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
       with:
         targets: wasm32v1-none
-        
-    - name: Install Soroban CLI
-      run: |
-        cargo install --version ${{ env.SOROBAN_CLI_VERSION }} soroban-cli
         
     - name: Download build artifacts
       uses: actions/download-artifact@v4
@@ -312,7 +301,6 @@ jobs:
         echo "**Build Information:**" >> deployment-summary.md
         echo "- Commit: ${{ github.sha }}" >> deployment-summary.md
         echo "- Rust Version: ${{ env.RUST_VERSION }}" >> deployment-summary.md
-        echo "- Soroban CLI Version: ${{ env.SOROBAN_CLI_VERSION }}" >> deployment-summary.md
         echo "" >> deployment-summary.md
         
         echo "**Available Contracts:**" >> deployment-summary.md
