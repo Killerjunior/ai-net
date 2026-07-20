@@ -114,7 +114,8 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
       endpoint: data.endpoint,
       stellarPublicKey: data.stellarPublicKey,
       reputationScore: 0,
-      lastSeenAt: new Date().toISOString()
+      lastSeenAt: new Date().toISOString(),
+      status: "online"
     };
     
     db.upsert(agent);

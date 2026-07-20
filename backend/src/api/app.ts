@@ -55,7 +55,7 @@ function tryLoadStellarRelease(): StellarReleasePaymentFn | undefined {
 
 export function createApp(opts: AppOptions = {}): {
   httpServer: HttpServer;
-  close: () => void;
+  close: (callback?: () => void) => void;
 } {
   const app = express();
   app.use(express.json());
@@ -196,11 +196,11 @@ export function createApp(opts: AppOptions = {}): {
   // ── Error handler (must be last) ───────────────────────────────────────────
   app.use(errorHandler);
 
-  function close(): void {
+  function close(callback?: () => void): void {
     detachStream();
     stopRecording();
     eventStore.close();
-    httpServer.close();
+    httpServer.close(callback);
   }
 
   return { httpServer, close };
