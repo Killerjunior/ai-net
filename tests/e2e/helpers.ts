@@ -123,13 +123,18 @@ export interface E2EKeypair {
 export function createE2ETestKeypair(): E2EKeypair {
   try {
     const kp = Keypair.random();
-    const pubKeyStr = typeof kp.publicKey === "function" ? kp.publicKey() : (kp.publicKey ?? "GCOORDINATOR");
+    const getPub = (kp as any).publicKey;
+    const pubKeyStr: string = typeof getPub === "function" ? getPub.call(kp) : String(getPub ?? "GCOORDINATOR");
     return {
       publicKey: () => pubKeyStr,
       sign: (data: Buffer) => {
         try {
-          const res = kp.sign(data);
-          return Buffer.isBuffer(res) ? res : Buffer.from(data);
+          const signFn = (kp as any).sign;
+          if (typeof signFn === "function") {
+            const res = signFn.call(kp, data);
+            return Buffer.isBuffer(res) ? res : Buffer.from(data);
+          }
+          return Buffer.from(data);
         } catch {
           return Buffer.from(data);
         }
