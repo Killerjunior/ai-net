@@ -651,6 +651,13 @@ mod test {
     use super::*;
     use soroban_sdk::{testutils::Address as _, BytesN, Env};
 
+    /// Creates a fresh in-memory test environment with the contract registered.
+    ///
+    /// Soroban's test Env creates an entirely simulated blockchain in memory —
+    /// no real deployment, no network calls, no WASM compilation at test time.
+    /// Each call to `Env::default()` + `env.register()` completes in microseconds,
+    /// so there is no measurable benefit to sharing Env instances across tests.
+    /// Test isolation is preserved by design; snapshot/rollback is unnecessary.
     fn setup() -> (Env, AgentRegistryContractClient<'static>) {
         let env = Env::default();
         env.mock_all_auths();
