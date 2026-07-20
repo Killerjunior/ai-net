@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
-import { Keypair, Horizon } from "@stellar/stellar-sdk";
+import { Keypair, Server as HorizonServer } from "@stellar/stellar-sdk";
 import { getAgentDb, createAgentDb, AgentDb } from "../../db/agents";
 
 export interface AgentsRouterOptions {
@@ -17,7 +17,7 @@ const RegisterAgentSchema = z.object({
 });
 
 const DEFAULT_HEALTH_TIMEOUT_MS = 3_000;
-const horizon = new Horizon.Server("https://horizon-testnet.stellar.org");
+const horizon = new HorizonServer("https://horizon-testnet.stellar.org");
 
 export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
   const router = Router();
