@@ -76,6 +76,7 @@ export interface TaskDb {
   updateDagJson(id: string, dagJson: string): void;
   insertEvent(event: TaskEvent): void;
   getEventHistory(taskId: string): TaskEvent[];
+  failRunningTasks(): void;
 }
 
 export function createTaskDb(db: Database.Database): TaskDb {
@@ -179,6 +180,30 @@ export function createTaskDb(db: Database.Database): TaskDb {
         payload: r.payload ? JSON.parse(r.payload) : undefined,
         timestamp: r.timestamp,
       }));
+    },
+
+    failRunningTasks(): void {
+      const now = new Date().toISOString();
+      const runningTasks = db.prepare("SELECT * FROM tasks WHERE status = 'running'").all() as any[];
+      for (const task of runningTasks) {
+        let dag: any[] = [];
+        try {
+          dag = JSON.parse(task.dagJson);
+          for (const node of dag) {
+            if (node.status === 'running' || node.status === 'pending' || node.status === 'queued') {
+              node.status = 'failed';
+              node.error = 'Server shutdown';
+            }
+          }
+        } catch (e) {
+          // ignore parse error
+        }
+        db.prepare("UPDATE tasks SET status = 'failed', dagJson = ?, updatedAt = ? WHERE id = ?").run(
+          JSON.stringify(dag),
+          now,
+          task.id
+        );
+      }
     },
   };
 }
