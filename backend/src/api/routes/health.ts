@@ -93,8 +93,8 @@ router.get("/ready", async (_req: Request, res: Response) => {
   };
 
   try {
-    const tasksModule = await import("../../db/tasks");
-    const paymentsModule = await import("../../db/index");
+    const tasksModule = await import("../../db/tasks.js");
+    const paymentsModule = await import("../../db/index.js");
 
     try {
       const taskDb = (tasksModule.getTaskDb as Function)();
