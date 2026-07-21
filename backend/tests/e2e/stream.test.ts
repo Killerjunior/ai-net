@@ -44,8 +44,8 @@ const fixtureByType: Record<string, AgentResult> = {
 };
 
 const mockDispatch: DispatchFn = async (taskId, node: DAGNode, _context) => {
-  const fixture = fixtureByType[node.agentType];
-  if (!fixture) throw new Error(`No fixture for agentType: ${node.agentType}`);
+  const fixture = fixtureByType[node.type];
+  if (!fixture) throw new Error(`No fixture for agentType: ${node.type}`);
   await new Promise(r => setTimeout(r, 5));
   return { ...fixture, taskId, nodeId: node.nodeId };
 };

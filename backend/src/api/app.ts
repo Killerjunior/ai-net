@@ -123,7 +123,7 @@ export function createApp(opts: AppOptions = {}): {
 
 async function defaultDispatch(
   taskId: string,
-  node: { nodeId: string; agentType: string; prompt: string },
+  node: DAGNode,
   context: string,
 ): Promise<unknown> {
   // In production this POSTs to the agent's HTTP endpoint.

@@ -10,7 +10,7 @@ jest.mock('@stellar/stellar-sdk', () => ({
 }));
 
 const mockTask: Task = {
-  taskId: 'task_abc123',
+  id: 'task_abc123',
   prompt: 'test prompt',
   walletPublicKey: 'GAGENT_WALLET_PUBLIC_KEY',
   status: 'running',
