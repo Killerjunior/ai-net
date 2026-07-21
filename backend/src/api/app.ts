@@ -19,6 +19,7 @@ import {
 } from "../payment";
 import { agentsRouter } from "./routes/agents";
 import { healthRouter } from "./routes/health";
+import { createStatsRouter } from "./routes/stats";
 import { rateLimitMiddleware } from "./middleware/rateLimit";
 import { authMiddleware } from "./middleware/auth";
 import { requestId } from "./middleware/requestId";
@@ -71,6 +72,9 @@ export function createApp(opts: AppOptions = {}): {
 
   // ── Health routes ───────────────────────────────────────────────────────────
   app.use("/health", healthRouter);
+
+  // ── Stats routes ───────────────────────────────────────────────────────────
+  app.use("/api/stats", createStatsRouter(getTaskDb()));
 
   // ── Agent routes ───────────────────────────────────────────────────────────
   app.use("/api/agents", agentsRouter);
