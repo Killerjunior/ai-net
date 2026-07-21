@@ -11,6 +11,7 @@ import { getTask } from "../coordinator/taskStore";
 import { eventBus } from "../coordinator/eventBus";
 import { createEventStore, type EventStore } from "../coordinator/eventStore";
 import { attachTaskStream, type TaskStreamOptions } from "./routes/stream";
+import type { DAGNode } from "../types/task";
 import {
   createPaymentReleaseFn,
   type StellarReleasePaymentFn,
