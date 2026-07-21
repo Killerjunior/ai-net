@@ -19,7 +19,7 @@ import { createApp } from '../../src/api/app';
 import { eventBus } from '../../src/coordinator/eventBus';
 import { WS_CLOSE } from '../../src/types/stream';
 import type { DispatchFn, PaymentReleaseFn } from '../../src/coordinator/coordinator';
-import type { DAGNode } from '../../src/coordinator/types';
+import type { DAGNode } from '../../src/types/task';
 import {
   researchFixture,
   riskFixture,

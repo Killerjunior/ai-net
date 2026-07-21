@@ -1,7 +1,7 @@
 import { Keypair } from '@stellar/stellar-sdk';
 import { createPaymentReleaseFn, type StellarReleasePaymentFn } from './index';
 import * as taskStore from '../coordinator/taskStore';
-import type { Task } from '../coordinator/types';
+import type { Task } from '../types/task';
 
 jest.mock('@stellar/stellar-sdk', () => ({
   Keypair: {
