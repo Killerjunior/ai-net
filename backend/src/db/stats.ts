@@ -1,6 +1,6 @@
 import type { StatsResponse, TimePoint } from '../types/stats';
 
-import type Database from 'better-sqlite3';
+import Database from 'better-sqlite3';
 
 export type DbClient = Database.Database;
 
