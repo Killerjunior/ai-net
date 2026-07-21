@@ -22,6 +22,7 @@ import { createStatsRouter } from "./routes/stats";
 import { createTasksRouter } from "./routes/tasks";
 import { rateLimitMiddleware } from "./middleware/rateLimit";
 import { authMiddleware } from "./middleware/auth";
+import { createCorsMiddleware } from "./middleware/cors";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler } from "./middleware/errorHandler";
@@ -63,6 +64,13 @@ export function createApp(opts: AppOptions = {}): {
   const app = express();
   app.use(express.json());
   // ── Global middleware ────────────────────────────────────────────────────────
+  app.use((_req, res, next) => {
+    if (process.env.NODE_ENV === "production") {
+      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+    }
+    next();
+  });
+  app.use(createCorsMiddleware());
   app.use(requestId);
   app.use(requestLogger);
 
