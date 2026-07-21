@@ -2,7 +2,7 @@ import type { StatsResponse, TimePoint } from '../types/stats';
 
 import type Database from 'better-sqlite3';
 
-export type DbClient = Database;
+export type DbClient = Database.Database;
 
 const MS_PER_HOUR = 60 * 60 * 1000;
 const STROOP_FACTOR = 1e7;
