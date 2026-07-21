@@ -133,24 +133,30 @@ pub enum DataKey {
     CapabilityIndex(Symbol),
     FrozenAgent(Symbol),
     ErrorResolverContract,
-    Error(BytesN<32>),
+    ErrorRecord(BytesN<32>),
     GasConfig,
 }
 
 /// Per-item outcome for batch registration (`Ok(agent_id)` / `Err(code)`).
+///
+/// The failure payload is the raw `u32` error code rather than [`Error`]
+/// itself: a `#[contracterror]` type is represented on the wire as a bare
+/// status code and cannot be embedded inside a `#[contracttype]`. Use
+/// [`Error::from_code`] to recover the typed variant.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BatchResult {
     Ok(Symbol),
-    Err(Error),
+    Err(u32),
 }
 
-/// Per-item outcome for batch error resolution.
+/// Per-item outcome for batch error resolution. See [`BatchResult`] for why
+/// the failure payload is a `u32` code.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum VoidBatchResult {
     Ok,
-    Err(Error),
+    Err(u32),
 }
 
 #[contracterror]
@@ -165,6 +171,25 @@ pub enum Error {
     NotAdmin = 6,
     AlreadyResolved = 7,
     DuplicateInBatch = 8,
+}
+
+impl Error {
+    /// Recover the typed variant from a raw code as carried by
+    /// [`BatchResult::Err`] / [`VoidBatchResult::Err`]. Returns `None` for
+    /// codes this contract version doesn't define.
+    pub fn from_code(code: u32) -> Option<Self> {
+        match code {
+            1 => Some(Error::NotFound),
+            2 => Some(Error::Unauthorized),
+            3 => Some(Error::AlreadyExists),
+            4 => Some(Error::ContractPaused),
+            5 => Some(Error::AgentFrozen),
+            6 => Some(Error::NotAdmin),
+            7 => Some(Error::AlreadyResolved),
+            8 => Some(Error::DuplicateInBatch),
+            _ => None,
+        }
+    }
 }
 
 #[contract]
@@ -393,34 +418,43 @@ impl AgentRegistryContract {
         // Contract-level pause applies to the whole batch.
         if require_not_paused(&env).is_err() {
             for _ in 0..agents.len() {
-                results.push_back(BatchResult::Err(Error::ContractPaused));
+                results.push_back(BatchResult::Err(Error::ContractPaused as u32));
             }
             return results;
         }
 
         // ── Phase 1: validate (no writes) ────────────────────────────────────
+        // `require_auth` may be called at most once per address per frame; a
+        // second call for an owner already authorized here fails the whole
+        // invocation with `Auth, ExistingValue`. Batches routinely share one
+        // owner across items, so authorize each distinct owner exactly once.
+        let mut authorized: Vec<Address> = Vec::new(&env);
+
         for i in 0..agents.len() {
             let record = agents.get(i).unwrap();
 
             // Auth first — host will reject the whole invocation if any
             // required auth is missing; still checked per-item for clarity.
-            record.owner.require_auth();
+            if !authorized.contains(&record.owner) {
+                record.owner.require_auth();
+                authorized.push_back(record.owner.clone());
+            }
 
             if require_not_frozen(&env, &record.id).is_err() {
-                results.push_back(BatchResult::Err(Error::AgentFrozen));
+                results.push_back(BatchResult::Err(Error::AgentFrozen as u32));
                 all_ok = false;
                 continue;
             }
 
             if is_duplicate_in_batch(&agents, i, &record.id) {
-                results.push_back(BatchResult::Err(Error::DuplicateInBatch));
+                results.push_back(BatchResult::Err(Error::DuplicateInBatch as u32));
                 all_ok = false;
                 continue;
             }
 
             let agent_key = DataKey::Agent(record.id.clone());
             if env.storage().persistent().has(&agent_key) {
-                results.push_back(BatchResult::Err(Error::AlreadyExists));
+                results.push_back(BatchResult::Err(Error::AlreadyExists as u32));
                 all_ok = false;
                 continue;
             }
@@ -594,7 +628,7 @@ impl AgentRegistryContract {
     ) -> Result<(), Error> {
         reporter.require_auth();
 
-        let key = DataKey::Error(error_id.clone());
+        let key = DataKey::ErrorRecord(error_id.clone());
         if env.storage().persistent().has(&key) {
             return Err(Error::AlreadyExists);
         }
@@ -629,20 +663,20 @@ impl AgentRegistryContract {
             let id = error_ids.get(i).unwrap();
 
             if is_duplicate_error_id(&error_ids, i, &id) {
-                results.push_back(VoidBatchResult::Err(Error::DuplicateInBatch));
+                results.push_back(VoidBatchResult::Err(Error::DuplicateInBatch as u32));
                 all_ok = false;
                 continue;
             }
 
-            let key = DataKey::Error(id.clone());
+            let key = DataKey::ErrorRecord(id.clone());
             let entry: Option<ErrorEntry> = env.storage().persistent().get(&key);
             match entry {
                 None => {
-                    results.push_back(VoidBatchResult::Err(Error::NotFound));
+                    results.push_back(VoidBatchResult::Err(Error::NotFound as u32));
                     all_ok = false;
                 }
                 Some(e) if e.resolved => {
-                    results.push_back(VoidBatchResult::Err(Error::AlreadyResolved));
+                    results.push_back(VoidBatchResult::Err(Error::AlreadyResolved as u32));
                     all_ok = false;
                 }
                 Some(_) => {
@@ -659,7 +693,7 @@ impl AgentRegistryContract {
         let mut ttl_keys: Vec<DataKey> = Vec::new(&env);
         for i in 0..error_ids.len() {
             let id = error_ids.get(i).unwrap();
-            let key = DataKey::Error(id.clone());
+            let key = DataKey::ErrorRecord(id.clone());
             let mut entry: ErrorEntry = env.storage().persistent().get(&key).unwrap();
             entry.resolved = true;
             entry.resolution = resolution.clone();
@@ -673,7 +707,7 @@ impl AgentRegistryContract {
 
     /// Fetch a single error entry (for tests / off-chain indexing).
     pub fn get_error(env: Env, error_id: BytesN<32>) -> Option<ErrorEntry> {
-        env.storage().persistent().get(&DataKey::Error(error_id))
+        env.storage().persistent().get(&DataKey::ErrorRecord(error_id))
     }
 
     // ── Gas budget estimation ────────────────────────────────────────────────
@@ -1354,7 +1388,7 @@ mod test {
         );
         assert_eq!(
             results.get(1).unwrap(),
-            BatchResult::Err(Error::AlreadyExists)
+            BatchResult::Err(Error::AlreadyExists as u32)
         );
         assert_eq!(
             results.get(2).unwrap(),
@@ -1384,7 +1418,7 @@ mod test {
         );
         assert_eq!(
             results.get(1).unwrap(),
-            BatchResult::Err(Error::DuplicateInBatch)
+            BatchResult::Err(Error::DuplicateInBatch as u32)
         );
         // Atomic rollback — agent was not registered.
         assert_eq!(
@@ -1449,7 +1483,7 @@ mod test {
         assert_eq!(results.get(0).unwrap(), VoidBatchResult::Ok);
         assert_eq!(
             results.get(1).unwrap(),
-            VoidBatchResult::Err(Error::NotFound)
+            VoidBatchResult::Err(Error::NotFound as u32)
         );
 
         // Atomic: first error must still be unresolved.
@@ -1480,7 +1514,7 @@ mod test {
         let results = client.resolve_errors(&both, &Resolution::Escalated);
         assert_eq!(
             results.get(0).unwrap(),
-            VoidBatchResult::Err(Error::AlreadyResolved)
+            VoidBatchResult::Err(Error::AlreadyResolved as u32)
         );
         assert_eq!(results.get(1).unwrap(), VoidBatchResult::Ok);
 
