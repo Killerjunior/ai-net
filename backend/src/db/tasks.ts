@@ -87,12 +87,19 @@ export function createTaskDb(db: Database.Database): TaskDb {
         INSERT INTO tasks (id, prompt, walletPublicKey, status, dagJson, createdAt, updatedAt)
         VALUES (@id, @prompt, @walletPublicKey, @status, @dagJson, @createdAt, @updatedAt)
       `,
-      ).run(task);
+      ).run({
+        ...task,
+        dagJson: JSON.stringify(task.dag),
+      });
     },
 
     findById(id: string): Task | undefined {
-      return db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as
-        Task | undefined;
+      const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as any;
+      if (!row) return undefined;
+      return {
+        ...row,
+        dag: JSON.parse(row.dagJson),
+      };
     },
 
     list(
@@ -120,11 +127,16 @@ export function createTaskDb(db: Database.Database): TaskDb {
       // Only allow safe sort values — default to DESC
       const sortOrder = options.sort === "createdAt:asc" ? "ASC" : "DESC";
 
-      const tasks = db
+      const rows = db
         .prepare(
           `SELECT * FROM tasks WHERE ${whereClause} ORDER BY createdAt ${sortOrder} LIMIT ? OFFSET ?`,
         )
-        .all(...params, pageSize, offset) as Task[];
+        .all(...params, pageSize, offset) as any[];
+
+      const tasks: Task[] = rows.map((row) => ({
+        ...row,
+        dag: JSON.parse(row.dagJson),
+      }));
 
       const { total } = db
         .prepare(`SELECT COUNT(*) as total FROM tasks WHERE ${whereClause}`)
@@ -190,7 +202,7 @@ export function createTaskDb(db: Database.Database): TaskDb {
         try {
           dag = JSON.parse(task.dagJson);
           for (const node of dag) {
-            if (node.status === 'running' || node.status === 'pending' || node.status === 'queued') {
+            if (node.status === 'running' || node.status === 'pending') {
               node.status = 'failed';
               node.error = 'Server shutdown';
             }
