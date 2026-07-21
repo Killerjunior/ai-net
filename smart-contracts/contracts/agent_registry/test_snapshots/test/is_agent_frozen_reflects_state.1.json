@@ -5,6 +5,8 @@
   },
   "auth": [
     [],
+    [],
+    [],
     [
       [
         "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
@@ -12,54 +14,10 @@
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "register_agent",
+              "function_name": "freeze_agent",
               "args": [
                 {
-                  "map": [
-                    {
-                      "key": {
-                        "symbol": "capability"
-                      },
-                      "val": {
-                        "symbol": "coding"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "endpoint"
-                      },
-                      "val": {
-                        "string": "https://agent.example.com"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "id"
-                      },
-                      "val": {
-                        "symbol": "agent2"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "owner"
-                      },
-                      "val": {
-                        "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "price_stroops"
-                      },
-                      "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 1000
-                        }
-                      }
-                    }
-                  ]
+                  "symbol": "agent_state"
                 }
               ]
             }
@@ -68,6 +26,7 @@
         }
       ]
     ],
+    [],
     [
       [
         "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
@@ -75,10 +34,10 @@
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "deregister_agent",
+              "function_name": "unfreeze_agent",
               "args": [
                 {
-                  "symbol": "agent2"
+                  "symbol": "agent_state"
                 }
               ]
             }
@@ -106,10 +65,10 @@
             "key": {
               "vec": [
                 {
-                  "symbol": "CapabilityIndex"
+                  "symbol": "FrozenAgent"
                 },
                 {
-                  "symbol": "coding"
+                  "symbol": "agent_state"
                 }
               ]
             },
@@ -126,22 +85,22 @@
                 "key": {
                   "vec": [
                     {
-                      "symbol": "CapabilityIndex"
+                      "symbol": "FrozenAgent"
                     },
                     {
-                      "symbol": "coding"
+                      "symbol": "agent_state"
                     }
                   ]
                 },
                 "durability": "persistent",
                 "val": {
-                  "vec": []
+                  "bool": false
                 }
               }
             },
             "ext": "v0"
           },
-          535680
+          4095
         ]
       ],
       [
@@ -166,7 +125,32 @@
                     "executable": {
                       "wasm": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
                     },
-                    "storage": null
+                    "storage": [
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "Admin"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "Paused"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "bool": false
+                        }
+                      }
+                    ]
                   }
                 }
               }

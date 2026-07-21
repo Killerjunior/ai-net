@@ -21,7 +21,7 @@
                         "symbol": "capability"
                       },
                       "val": {
-                        "symbol": "coding"
+                        "symbol": "test"
                       }
                     },
                     {
@@ -37,7 +37,7 @@
                         "symbol": "id"
                       },
                       "val": {
-                        "symbol": "agent2"
+                        "symbol": "budget_agent"
                       }
                     },
                     {
@@ -78,7 +78,7 @@
               "function_name": "deregister_agent",
               "args": [
                 {
-                  "symbol": "agent2"
+                  "symbol": "budget_agent"
                 }
               ]
             }
@@ -86,8 +86,7 @@
           "sub_invocations": []
         }
       ]
-    ],
-    []
+    ]
   ],
   "ledger": {
     "protocol_version": 22,
@@ -109,7 +108,7 @@
                   "symbol": "CapabilityIndex"
                 },
                 {
-                  "symbol": "coding"
+                  "symbol": "test"
                 }
               ]
             },
@@ -129,7 +128,7 @@
                       "symbol": "CapabilityIndex"
                     },
                     {
-                      "symbol": "coding"
+                      "symbol": "test"
                     }
                   ]
                 },
