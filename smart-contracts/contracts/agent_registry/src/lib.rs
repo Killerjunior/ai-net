@@ -123,9 +123,7 @@ impl AgentRegistryContract {
 
         env.events().publish(
             (symbol_short!("registry"), Symbol::new(&env, "removed")),
-            events::AgentRemoved {
-                agent_id,
-            },
+            events::AgentRemoved { agent_id },
         );
 
         Ok(())
