@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from "express";
 import { createServer, Server as HttpServer } from "http";
 import { randomUUID } from "crypto";
+import swaggerUi from "swagger-ui-express";
 
 import { decompose } from "../coordinator/decompose";
 import {
@@ -18,6 +19,7 @@ import {
 } from "../payment";
 import { agentsRouter } from "./routes/agents";
 import { healthRouter } from "./routes/health";
+import { createStatsRouter } from "./routes/stats";
 import { rateLimitMiddleware } from "./middleware/rateLimit";
 import { authMiddleware } from "./middleware/auth";
 import { requestId } from "./middleware/requestId";
@@ -25,6 +27,7 @@ import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler } from "./middleware/errorHandler";
 import { createLogger } from "../utils/logger";
 import { createTaskDb, getTaskDb } from "../db/tasks";
+import { openapiSpec } from "./docs/openapi";
 
 export interface AppOptions {
   /** Called to execute a single DAG node; defaults to HTTP dispatch */
@@ -70,9 +73,69 @@ export function createApp(opts: AppOptions = {}): {
   // ── Health routes ───────────────────────────────────────────────────────────
   app.use("/health", healthRouter);
 
+  // ── Stats routes ───────────────────────────────────────────────────────────
+  app.use("/api/stats", createStatsRouter(getTaskDb()));
+
   // ── Agent routes ───────────────────────────────────────────────────────────
   app.use("/api/agents", agentsRouter);
 
+  // ── API docs ─────────────────────────────────────────────────────────────────
+  app.use("/docs", swaggerUi.serve, swaggerUi.setup(openapiSpec));
+  app.get("/openapi.json", (_req: Request, res: Response) => {
+    res.json(openapiSpec);
+  });
+
+  /**
+   * @openapi
+   * /api/tasks:
+   *   post:
+   *     summary: Create a new task
+   *     operationId: createTask
+   *     tags: [Tasks]
+   *     security:
+   *       - WalletAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [prompt]
+   *             properties:
+   *               prompt:
+   *                 type: string
+   *                 minLength: 1
+   *               walletPublicKey:
+   *                 type: string
+   *                 description: Optional; if omitted, falls back to the walletpublickey header, then to "anonymous".
+   *               maxBudgetXLM:
+   *                 type: number
+   *                 minimum: 0.1
+   *     responses:
+   *       201:
+   *         description: Task created and queued
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 taskId:
+   *                   type: string
+   *                   example: task_ab12cd34ef56
+   *                 dagPreview:
+   *                   type: array
+   *                   items:
+   *                     $ref: '#/components/schemas/DAGNode'
+   *                 status:
+   *                   type: string
+   *                   enum: [queued]
+   *       400:
+   *         description: Missing prompt or invalid maxBudgetXLM
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   */
   // ── POST /api/tasks ────────────────────────────────────────────────────────
   app.post(
     "/api/tasks",
@@ -129,6 +192,65 @@ export function createApp(opts: AppOptions = {}): {
     },
   );
 
+  /**
+   * @openapi
+   * /api/tasks:
+   *   get:
+   *     summary: List tasks for a wallet
+   *     operationId: listTasks
+   *     description: >
+   *       Queries the DB layer directly rather than through the coordinator's
+   *       task store, so each item in the response is a raw row containing
+   *       'dagJson' (a JSON string) rather than a parsed 'dag' array — unlike
+   *       GET /api/tasks/{id}.
+   *     tags: [Tasks]
+   *     security:
+   *       - WalletAuth: []
+   *     parameters:
+   *       - in: header
+   *         name: walletpublickey
+   *         required: true
+   *         schema: { type: string }
+   *       - in: query
+   *         name: page
+   *         schema: { type: integer, minimum: 1, default: 1 }
+   *       - in: query
+   *         name: pageSize
+   *         schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+   *       - in: query
+   *         name: status
+   *         schema: { type: string }
+   *       - in: query
+   *         name: q
+   *         schema: { type: string }
+   *         description: Substring match against the task prompt
+   *       - in: query
+   *         name: sort
+   *         schema:
+   *           type: string
+   *           enum: [createdAt:asc, createdAt:desc]
+   *     responses:
+   *       200:
+   *         description: Paginated task list
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 tasks:
+   *                   type: array
+   *                   items:
+   *                     $ref: '#/components/schemas/TaskListItem'
+   *                 total: { type: integer }
+   *                 page: { type: integer }
+   *                 pageSize: { type: integer }
+   *       401:
+   *         description: Missing walletpublickey header
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   */
   // ── GET /api/tasks ─────────────────────────────────────────────────────────
   app.get("/api/tasks", authMiddleware, (req: Request, res: Response) => {
     const walletPublicKey = req.headers["walletpublickey"] as
@@ -153,6 +275,34 @@ export function createApp(opts: AppOptions = {}): {
     return res.json({ tasks, total, page, pageSize });
   });
 
+  /**
+   * @openapi
+   * /api/tasks/{id}:
+   *   get:
+   *     summary: Get a task by ID
+   *     operationId: getTask
+   *     tags: [Tasks]
+   *     security:
+   *       - WalletAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema: { type: string }
+   *     responses:
+   *       200:
+   *         description: Task found
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Task'
+   *       404:
+   *         description: Task not found
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   */
   // ── GET /api/tasks/:id ─────────────────────────────────────────────────────
   app.get("/api/tasks/:id", (req: Request, res: Response) => {
     const task = getTask(req.params.id!);
@@ -160,6 +310,41 @@ export function createApp(opts: AppOptions = {}): {
     return res.json({ ...task, id: task.taskId, dag: task.dag });
   });
 
+  /**
+   * @openapi
+   * /api/tasks/{id}:
+   *   delete:
+   *     summary: Cancel a task
+   *     operationId: cancelTask
+   *     description: Cancels a queued task. Returns 409 if the task is currently running.
+   *     tags: [Tasks]
+   *     security:
+   *       - WalletAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema: { type: string }
+   *     responses:
+   *       200:
+   *         description: Task cancelled
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Task'
+   *       404:
+   *         description: Task not found
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   *       409:
+   *         description: Cannot cancel a running task
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   */
   // ── DELETE /api/tasks/:id ──────────────────────────────────────────────────
   app.delete("/api/tasks/:id", (req: Request, res: Response) => {
     const task = getTask(req.params.id!);
