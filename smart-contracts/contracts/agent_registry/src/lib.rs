@@ -26,6 +26,8 @@
 //! Callers inspect the returned `Vec<BatchResult>` / `Vec<VoidBatchResult>`:
 //! all-success means the batch committed; any failure means **no** writes occurred.
 
+mod events;
+
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env,
     String, Symbol, Vec,
@@ -473,9 +475,6 @@ impl AgentRegistryContract {
         }
         env.storage().persistent().set(&cap_key, &updated);
         env.storage().persistent().remove(&agent_key);
-
-        let status_key = DataKey::Status(agent_id.clone());
-        env.storage().persistent().remove(&status_key);
 
         env.events().publish(
             (symbol_short!("registry"), Symbol::new(&env, "removed")),
