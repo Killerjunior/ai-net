@@ -12,52 +12,150 @@
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "register_agent",
+              "function_name": "register_agents",
               "args": [
                 {
-                  "map": [
+                  "vec": [
                     {
-                      "key": {
-                        "symbol": "capability"
-                      },
-                      "val": {
-                        "symbol": "analytics"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "endpoint"
-                      },
-                      "val": {
-                        "string": "https://agent.example.com"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "id"
-                      },
-                      "val": {
-                        "symbol": "a1"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "owner"
-                      },
-                      "val": {
-                        "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "price_stroops"
-                      },
-                      "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 1000
+                      "map": [
+                        {
+                          "key": {
+                            "symbol": "capability"
+                          },
+                          "val": {
+                            "symbol": "research"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "endpoint"
+                          },
+                          "val": {
+                            "string": "https://agent.example.com"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "id"
+                          },
+                          "val": {
+                            "symbol": "b1"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "owner"
+                          },
+                          "val": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "price_stroops"
+                          },
+                          "val": {
+                            "i128": {
+                              "hi": 0,
+                              "lo": 1000
+                            }
+                          }
                         }
-                      }
+                      ]
+                    },
+                    {
+                      "map": [
+                        {
+                          "key": {
+                            "symbol": "capability"
+                          },
+                          "val": {
+                            "symbol": "research"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "endpoint"
+                          },
+                          "val": {
+                            "string": "https://agent.example.com"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "id"
+                          },
+                          "val": {
+                            "symbol": "b2"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "owner"
+                          },
+                          "val": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "price_stroops"
+                          },
+                          "val": {
+                            "i128": {
+                              "hi": 0,
+                              "lo": 1000
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "map": [
+                        {
+                          "key": {
+                            "symbol": "capability"
+                          },
+                          "val": {
+                            "symbol": "coding"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "endpoint"
+                          },
+                          "val": {
+                            "string": "https://agent.example.com"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "id"
+                          },
+                          "val": {
+                            "symbol": "b3"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "owner"
+                          },
+                          "val": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "price_stroops"
+                          },
+                          "val": {
+                            "i128": {
+                              "hi": 0,
+                              "lo": 1000
+                            }
+                          }
+                        }
+                      ]
                     }
                   ]
                 }
@@ -66,61 +164,157 @@
           },
           "sub_invocations": []
         }
-      ]
-    ],
-    [
+      ],
       [
         "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
         {
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "register_agent",
+              "function_name": "register_agents",
               "args": [
                 {
-                  "map": [
+                  "vec": [
                     {
-                      "key": {
-                        "symbol": "capability"
-                      },
-                      "val": {
-                        "symbol": "analytics"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "endpoint"
-                      },
-                      "val": {
-                        "string": "https://agent.example.com"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "id"
-                      },
-                      "val": {
-                        "symbol": "a2"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "owner"
-                      },
-                      "val": {
-                        "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "price_stroops"
-                      },
-                      "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 1000
+                      "map": [
+                        {
+                          "key": {
+                            "symbol": "capability"
+                          },
+                          "val": {
+                            "symbol": "research"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "endpoint"
+                          },
+                          "val": {
+                            "string": "https://agent.example.com"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "id"
+                          },
+                          "val": {
+                            "symbol": "b1"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "owner"
+                          },
+                          "val": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "price_stroops"
+                          },
+                          "val": {
+                            "i128": {
+                              "hi": 0,
+                              "lo": 1000
+                            }
+                          }
                         }
-                      }
+                      ]
+                    },
+                    {
+                      "map": [
+                        {
+                          "key": {
+                            "symbol": "capability"
+                          },
+                          "val": {
+                            "symbol": "research"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "endpoint"
+                          },
+                          "val": {
+                            "string": "https://agent.example.com"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "id"
+                          },
+                          "val": {
+                            "symbol": "b2"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "owner"
+                          },
+                          "val": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "price_stroops"
+                          },
+                          "val": {
+                            "i128": {
+                              "hi": 0,
+                              "lo": 1000
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "map": [
+                        {
+                          "key": {
+                            "symbol": "capability"
+                          },
+                          "val": {
+                            "symbol": "coding"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "endpoint"
+                          },
+                          "val": {
+                            "string": "https://agent.example.com"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "id"
+                          },
+                          "val": {
+                            "symbol": "b3"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "owner"
+                          },
+                          "val": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "price_stroops"
+                          },
+                          "val": {
+                            "i128": {
+                              "hi": 0,
+                              "lo": 1000
+                            }
+                          }
+                        }
+                      ]
                     }
                   ]
                 }
@@ -129,61 +323,157 @@
           },
           "sub_invocations": []
         }
-      ]
-    ],
-    [
+      ],
       [
         "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4",
         {
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "register_agent",
+              "function_name": "register_agents",
               "args": [
                 {
-                  "map": [
+                  "vec": [
                     {
-                      "key": {
-                        "symbol": "capability"
-                      },
-                      "val": {
-                        "symbol": "other"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "endpoint"
-                      },
-                      "val": {
-                        "string": "https://agent.example.com"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "id"
-                      },
-                      "val": {
-                        "symbol": "a3"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "owner"
-                      },
-                      "val": {
-                        "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "price_stroops"
-                      },
-                      "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 1000
+                      "map": [
+                        {
+                          "key": {
+                            "symbol": "capability"
+                          },
+                          "val": {
+                            "symbol": "research"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "endpoint"
+                          },
+                          "val": {
+                            "string": "https://agent.example.com"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "id"
+                          },
+                          "val": {
+                            "symbol": "b1"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "owner"
+                          },
+                          "val": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "price_stroops"
+                          },
+                          "val": {
+                            "i128": {
+                              "hi": 0,
+                              "lo": 1000
+                            }
+                          }
                         }
-                      }
+                      ]
+                    },
+                    {
+                      "map": [
+                        {
+                          "key": {
+                            "symbol": "capability"
+                          },
+                          "val": {
+                            "symbol": "research"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "endpoint"
+                          },
+                          "val": {
+                            "string": "https://agent.example.com"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "id"
+                          },
+                          "val": {
+                            "symbol": "b2"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "owner"
+                          },
+                          "val": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "price_stroops"
+                          },
+                          "val": {
+                            "i128": {
+                              "hi": 0,
+                              "lo": 1000
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "map": [
+                        {
+                          "key": {
+                            "symbol": "capability"
+                          },
+                          "val": {
+                            "symbol": "coding"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "endpoint"
+                          },
+                          "val": {
+                            "string": "https://agent.example.com"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "id"
+                          },
+                          "val": {
+                            "symbol": "b3"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "owner"
+                          },
+                          "val": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "price_stroops"
+                          },
+                          "val": {
+                            "i128": {
+                              "hi": 0,
+                              "lo": 1000
+                            }
+                          }
+                        }
+                      ]
                     }
                   ]
                 }
@@ -194,6 +484,7 @@
         }
       ]
     ],
+    [],
     []
   ],
   "ledger": {
@@ -216,7 +507,7 @@
                   "symbol": "Agent"
                 },
                 {
-                  "symbol": "a1"
+                  "symbol": "b1"
                 }
               ]
             },
@@ -236,7 +527,7 @@
                       "symbol": "Agent"
                     },
                     {
-                      "symbol": "a1"
+                      "symbol": "b1"
                     }
                   ]
                 },
@@ -248,7 +539,7 @@
                         "symbol": "capability"
                       },
                       "val": {
-                        "symbol": "analytics"
+                        "symbol": "research"
                       }
                     },
                     {
@@ -264,7 +555,7 @@
                         "symbol": "id"
                       },
                       "val": {
-                        "symbol": "a1"
+                        "symbol": "b1"
                       }
                     },
                     {
@@ -305,7 +596,7 @@
                   "symbol": "Agent"
                 },
                 {
-                  "symbol": "a2"
+                  "symbol": "b2"
                 }
               ]
             },
@@ -325,7 +616,7 @@
                       "symbol": "Agent"
                     },
                     {
-                      "symbol": "a2"
+                      "symbol": "b2"
                     }
                   ]
                 },
@@ -337,7 +628,7 @@
                         "symbol": "capability"
                       },
                       "val": {
-                        "symbol": "analytics"
+                        "symbol": "research"
                       }
                     },
                     {
@@ -353,7 +644,7 @@
                         "symbol": "id"
                       },
                       "val": {
-                        "symbol": "a2"
+                        "symbol": "b2"
                       }
                     },
                     {
@@ -394,7 +685,7 @@
                   "symbol": "Agent"
                 },
                 {
-                  "symbol": "a3"
+                  "symbol": "b3"
                 }
               ]
             },
@@ -414,7 +705,7 @@
                       "symbol": "Agent"
                     },
                     {
-                      "symbol": "a3"
+                      "symbol": "b3"
                     }
                   ]
                 },
@@ -426,7 +717,7 @@
                         "symbol": "capability"
                       },
                       "val": {
-                        "symbol": "other"
+                        "symbol": "coding"
                       }
                     },
                     {
@@ -442,7 +733,7 @@
                         "symbol": "id"
                       },
                       "val": {
-                        "symbol": "a3"
+                        "symbol": "b3"
                       }
                     },
                     {
@@ -483,7 +774,7 @@
                   "symbol": "CapabilityIndex"
                 },
                 {
-                  "symbol": "analytics"
+                  "symbol": "coding"
                 }
               ]
             },
@@ -503,7 +794,7 @@
                       "symbol": "CapabilityIndex"
                     },
                     {
-                      "symbol": "analytics"
+                      "symbol": "coding"
                     }
                   ]
                 },
@@ -511,10 +802,7 @@
                 "val": {
                   "vec": [
                     {
-                      "symbol": "a1"
-                    },
-                    {
-                      "symbol": "a2"
+                      "symbol": "b3"
                     }
                   ]
                 }
@@ -535,7 +823,7 @@
                   "symbol": "CapabilityIndex"
                 },
                 {
-                  "symbol": "other"
+                  "symbol": "research"
                 }
               ]
             },
@@ -555,7 +843,7 @@
                       "symbol": "CapabilityIndex"
                     },
                     {
-                      "symbol": "other"
+                      "symbol": "research"
                     }
                   ]
                 },
@@ -563,7 +851,10 @@
                 "val": {
                   "vec": [
                     {
-                      "symbol": "a3"
+                      "symbol": "b1"
+                    },
+                    {
+                      "symbol": "b2"
                     }
                   ]
                 }
