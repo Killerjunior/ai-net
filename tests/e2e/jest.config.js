@@ -13,6 +13,8 @@ module.exports = {
   roots: ['<rootDir>/../tests/e2e'],
   testMatch: ['<rootDir>/../tests/e2e/**/*.test.ts'],
   moduleNameMapper: {
+    '^@stellar/stellar-sdk$': '<rootDir>/node_modules/@stellar/stellar-sdk',
+    '^supertest$': '<rootDir>/node_modules/supertest',
     '^(\\.{1,2}/.*)\\.js$': '$1'
   },
   transform: {
