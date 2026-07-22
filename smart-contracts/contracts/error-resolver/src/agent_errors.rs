@@ -1,4 +1,6 @@
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, Symbol, Vec};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, Symbol, Vec,
+};
 
 /// On-chain per-agent error ledger. Distinct from the off-chain
 /// `ErrorResolver` lookup table (see `lookup.rs`): this contract tracks how
@@ -153,13 +155,19 @@ impl ErrorResolverContract {
     /// Clears the error ledger for `agent_id`. `caller` must be an
     /// allowlisted contract. This is what `agent-registry` calls when an
     /// agent is deregistered, so errors don't outlive the agent record.
-    pub fn clear_agent_errors(env: Env, caller: Address, agent_id: Symbol) -> Result<(), ContractError> {
+    pub fn clear_agent_errors(
+        env: Env,
+        caller: Address,
+        agent_id: Symbol,
+    ) -> Result<(), ContractError> {
         require_authorized_caller(&env, &caller)?;
         env.storage()
             .persistent()
             .remove(&DataKey::AgentErrorCount(agent_id.clone()));
-        env.events()
-            .publish((symbol_short!("errres"), symbol_short!("cleared")), agent_id);
+        env.events().publish(
+            (symbol_short!("errres"), symbol_short!("cleared")),
+            agent_id,
+        );
         Ok(())
     }
 }

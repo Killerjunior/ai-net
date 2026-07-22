@@ -26,11 +26,25 @@
 //! Callers inspect the returned `Vec<BatchResult>` / `Vec<VoidBatchResult>`:
 //! all-success means the batch committed; any failure means **no** writes occurred.
 
-use error_resolver::ErrorResolverContractClient;
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env,
-    String, Symbol, Vec,
+    contract, contractclient, contracterror, contractimpl, contracttype, symbol_short, Address,
+    BytesN, Env, String, Symbol, Vec,
 };
+
+/// The subset of error-resolver's on-chain interface this contract calls.
+///
+/// Declared here rather than importing `error_resolver::ErrorResolverContractClient`
+/// on purpose: depending on the resolver *crate* would link its `#[contractimpl]`
+/// into this contract's wasm, and both contracts export `initialize` and
+/// `get_admin`, so `rust-lld` fails the release build with duplicate symbols.
+/// A `#[contractclient]` generates the same `try_*` calling code from the
+/// signatures alone, with no link-time dependency. The real crate stays a
+/// dev-dependency so tests still exercise the genuine contract.
+#[contractclient(name = "ErrorResolverClient")]
+pub trait ErrorResolverInterface {
+    fn get_agent_error_count(env: Env, agent_id: Symbol) -> u32;
+    fn clear_agent_errors(env: Env, caller: Address, agent_id: Symbol);
+}
 
 // ─── Gas budget constants (empirical, CU / CPU instructions) ─────────────────
 // Stored as defaults in contract config; overridable via `set_gas_config`.
@@ -327,7 +341,9 @@ impl AgentRegistryContract {
     }
 
     pub fn get_error_resolver(env: Env) -> Option<Address> {
-        env.storage().instance().get(&DataKey::ErrorResolverContract)
+        env.storage()
+            .instance()
+            .get(&DataKey::ErrorResolverContract)
     }
 
     pub fn pause(env: Env) -> Result<(), Error> {
@@ -549,7 +565,7 @@ impl AgentRegistryContract {
             .instance()
             .get::<DataKey, Address>(&DataKey::ErrorResolverContract)
         {
-            let resolver_client = ErrorResolverContractClient::new(&env, &resolver);
+            let resolver_client = ErrorResolverClient::new(&env, &resolver);
             let _ =
                 resolver_client.try_clear_agent_errors(&env.current_contract_address(), &agent_id);
         }
@@ -576,7 +592,7 @@ impl AgentRegistryContract {
             .instance()
             .get::<DataKey, Address>(&DataKey::ErrorResolverContract)
             .map(|resolver| {
-                let resolver_client = ErrorResolverContractClient::new(&env, &resolver);
+                let resolver_client = ErrorResolverClient::new(&env, &resolver);
                 resolver_client
                     .try_get_agent_error_count(&agent_id)
                     .ok()
@@ -707,7 +723,9 @@ impl AgentRegistryContract {
 
     /// Fetch a single error entry (for tests / off-chain indexing).
     pub fn get_error(env: Env, error_id: BytesN<32>) -> Option<ErrorEntry> {
-        env.storage().persistent().get(&DataKey::ErrorRecord(error_id))
+        env.storage()
+            .persistent()
+            .get(&DataKey::ErrorRecord(error_id))
     }
 
     // ── Gas budget estimation ────────────────────────────────────────────────
