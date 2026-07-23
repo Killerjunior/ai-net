@@ -4,12 +4,22 @@ import { nanoid } from "nanoid";
 import { getTaskDb, createTaskDb } from "../../db/tasks";
 import { decompose } from "../../coordinator";
 import type { Task } from "../../types/task";
+import { executeDAG, type DispatchFn, type PaymentReleaseFn } from "../../coordinator/coordinator";
+import { createTask, getTask } from "../../coordinator/taskStore";
+import { createLogger } from "../../utils/logger";
 
-export const tasksRouter = Router();
+export function createTasksRouter(dispatch: DispatchFn, releasePayment: PaymentReleaseFn): Router {
+  const tasksRouter = Router();
 
+// `maxBudgetXLM` and `walletPublicKey` are optional, matching the handler this
+// router replaced (previously inline in app.ts). The old contract only rejected
+// maxBudgetXLM when it was present and below the minimum, and accepted
+// walletPublicKey from the body; requiring them here silently broke every
+// caller that omitted them, including the e2e suite.
 const CreateTaskSchema = z.object({
   prompt: z.string().min(1),
-  maxBudgetXLM: z.number().min(0.1),
+  walletPublicKey: z.string().optional(),
+  maxBudgetXLM: z.number().min(0.1).optional(),
   agentPreferences: z.array(z.string()).optional(),
 });
 
@@ -79,22 +89,36 @@ tasksRouter.post("/", (req: Request, res: Response): void => {
   }
 
   const { prompt } = parse.data;
-  const walletPublicKey = (req.headers["walletpublickey"] as string) ?? "";
+  // Body first, then the header, then "anonymous" — the precedence the
+  // previous app.ts handler used.
+  const walletPublicKey =
+    parse.data.walletPublicKey ??
+    (req.headers["walletpublickey"] as string | undefined) ??
+    "anonymous";
 
-  const dag = decompose(prompt);
+  const taskId = `task_${nanoid(12)}`;
+  const dag = decompose(taskId, prompt);
   const now = new Date().toISOString();
   const task: Task = {
-    id: `task_${nanoid(12)}`,
+    id: taskId,
     prompt,
     walletPublicKey,
     status: "queued",
-    dagJson: JSON.stringify(dag),
+    dag,
     createdAt: now,
     updatedAt: now,
   };
 
-  const db = createTaskDb(getTaskDb());
-  db.insert(task);
+  createTask(task);
+
+  const log = createLogger({ taskId });
+
+  // Run the DAG asynchronously — do not await
+  setImmediate(() => {
+    executeDAG(getTask(taskId)!, dispatch, releasePayment).catch((err) => {
+      log.error({ err }, "DAG execution error");
+    });
+  });
 
   res.status(201).json({ taskId: task.id, dagPreview: dag, status: "queued" });
 });
@@ -167,7 +191,7 @@ tasksRouter.get("/", (req: Request, res: Response): void => {
     q: q && q.length > 0 ? q : undefined,
   });
 
-  res.json({ tasks: tasks.map(t => ({ ...t, dag: JSON.parse(t.dagJson) })), total, page, pageSize });
+  res.json({ tasks, total, page, pageSize });
 });
 
 /**
@@ -205,7 +229,7 @@ tasksRouter.get("/:id", (req: Request, res: Response): void => {
     res.status(404).json({ error: "Task not found" });
     return;
   }
-  res.json({ ...task, dag: JSON.parse(task.dagJson) });
+  res.json(task);
 });
 
 /**
@@ -260,3 +284,6 @@ tasksRouter.delete("/:id", (req: Request, res: Response): void => {
   db.updateStatus(req.params.id, "cancelled");
   res.json({ taskId: req.params.id, status: "cancelled" });
 });
+
+  return tasksRouter;
+}

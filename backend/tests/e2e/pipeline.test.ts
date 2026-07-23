@@ -21,7 +21,7 @@ import type { Server as HttpServer } from 'http';
 
 import { createApp } from '../../src/api/app';
 import type { DispatchFn, PaymentReleaseFn } from '../../src/coordinator/coordinator';
-import type { DAGNode } from '../../src/coordinator/types';
+import type { DAGNode } from '../../src/types/task';
 import {
   researchFixture,
   riskFixture,
@@ -33,7 +33,11 @@ import type { AgentResult } from '../../src/agents/research/types';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const PROMPT = 'Generate a market-entry report for solar energy in Southeast Asia';
+// Exercises every branch of `decompose`: "market" -> risk, "software"/"implementation"
+// -> coding, "UI design" -> design. research and report are unconditional, so this
+// yields the full 5-node DAG this suite is built around.
+const PROMPT =
+  'Generate a market-entry report for solar energy in Southeast Asia, including software implementation and UI design';
 
 const REQUIRED_SECTIONS = [
   'Executive Summary',
@@ -78,8 +82,8 @@ const fixtureByType: Record<string, AgentResult> = {
  * to simulate real async agent work.
  */
 const mockDispatch: DispatchFn = async (taskId, node: DAGNode, _context) => {
-  const fixture = fixtureByType[node.agentType];
-  if (!fixture) throw new Error(`No fixture for agentType: ${node.agentType}`);
+  const fixture = fixtureByType[node.type];
+  if (!fixture) throw new Error(`No fixture for agentType: ${node.type}`);
   // Simulate a small async delay
   await new Promise(r => setTimeout(r, 5));
   return { ...fixture, taskId, nodeId: node.nodeId };
